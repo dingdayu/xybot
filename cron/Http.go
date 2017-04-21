@@ -92,7 +92,7 @@ func (h *Http) PostMap(url string, params map[string]string) string {
 
 func (h *Http) Post(url string, post string) string {
 	resp, err := h.Client.Post(url,
-		"application/x-www-form-urlencoded",
+		"text/plain",
 		strings.NewReader(post))
 	if err != nil {
 		fmt.Println(err)
@@ -103,8 +103,6 @@ func (h *Http) Post(url string, post string) string {
 	if err != nil {
 		// handle error
 	}
-
-	fmt.Println(string(body))
 	return string(body)
 }
 

@@ -10,5 +10,5 @@ func main() {
 
 func httpGet() {
 
-	cron.Xml()
+	cron.Test()
 }

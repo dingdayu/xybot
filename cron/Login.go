@@ -1,12 +1,13 @@
 package cron
 
 import (
+	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
-	"os/user"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -26,7 +27,10 @@ type loginXml struct {
 
 type SyncKey struct {
 	Count int
-	List  []map[string]int
+	List  []struct {
+		Key int
+		Val int
+	}
 }
 
 // 消息基础返回状态
@@ -61,12 +65,13 @@ type WxLoginStatus struct {
 	fileUri     string
 	pushUri     string
 
+	SyncKey    SyncKey
 	SyncKeyStr string
 }
 
 //wxinit 时需要提交的数据json格式
 type baseRequest struct {
-	Uin      int
+	Uin      string
 	Sid      string
 	Skey     string
 	DeviceID string
@@ -75,12 +80,17 @@ type baseRequest struct {
 // 待扫描队列
 var uuidChannel chan string
 
+// 登陆的用户组
+var WxMap map[string]*WxLoginStatus
+
 func init() {
 	uuidChannel = make(chan string)
+	WxMap = make(map[string]*WxLoginStatus)
 	go check()
 }
 
 func Test() {
+
 	done := make(chan struct{})
 
 	fmt.Println("开始登陆:")
@@ -166,6 +176,48 @@ func waitForLogin(uuid string) {
 			fileUri = fmt.Sprintf(url, "file."+matches[2])
 			pushUri = fmt.Sprintf(url, "webpush."+matches[2])
 			baseUri = fmt.Sprintf(url, matches[2])
+
+			fmt.Println("开始请求xml")
+			loginXm := startLogin(uuid, redirectUri)
+
+			fmt.Println("开始拼接登陆状态")
+			if v, ok := WxMap[uuid]; ok {
+				v.baseUri = baseUri
+				v.pushUri = pushUri
+				v.fileUri = fileUri
+				v.passTicket = loginXm.PassTicket
+				v.skey = loginXm.Skey
+				v.sid = loginXm.Wxsid
+				v.uin = loginXm.Wxuin
+				v.BaseRequest = baseRequest{
+					Uin:      loginXm.Wxuin,
+					Sid:      loginXm.Wxsid,
+					Skey:     loginXm.Skey,
+					DeviceID: "e" + rands(15),
+				}
+			} else {
+				baseRequest := baseRequest{
+					Uin:      loginXm.Wxuin,
+					Sid:      loginXm.Wxsid,
+					Skey:     loginXm.Skey,
+					DeviceID: "e" + rands(15),
+				}
+				WxMap[uuid] = &WxLoginStatus{
+					baseUri:     baseUri,
+					pushUri:     pushUri,
+					fileUri:     fileUri,
+					passTicket:  loginXm.PassTicket,
+					sid:         loginXm.Wxsid,
+					uin:         loginXm.Wxuin,
+					skey:        loginXm.Skey,
+					BaseRequest: baseRequest,
+				}
+			}
+
+			fmt.Println(WxMap[uuid])
+			WxMap[uuid].webwxinit(uuid)
+			return
+
 		case "408":
 			fmt.Println("等待中……")
 			tip = 1
@@ -179,20 +231,21 @@ func waitForLogin(uuid string) {
 }
 
 // 获取登陆的第一次xml消息
-func startLogin(uuid string, redirectUri string) {
+func startLogin(uuid string, redirectUri string) loginXml {
 	content := NewHttp(uuid).Get(redirectUri, make(map[string]string))
+	fmt.Println(content)
 	var data loginXml
 	err := xml.Unmarshal([]byte(content), &data)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	fmt.Println(data)
+	return data
 
 }
 
 // 获取个人信息及最近聊天
 func (user WxLoginStatus) webwxinit(uuid string) {
-	url := fmt.Sprintf(user.baseUri+"/webwxinit?r=%d", strconv.FormatInt(time.Now().Unix(), 10))
+	url := fmt.Sprintf(user.baseUri+"/webwxinit?r=%d&lang=zh_CN&pass_ticket=%s", strconv.FormatInt(time.Now().Unix(), 10), user.passTicket)
 
 	//
 	type postDataStruct struct {
@@ -205,14 +258,29 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 	if err != nil {
 		// json解析错误
 	}
-	content := NewHttp(uuid).Post(url, bs)
-	var wxLoginStatus WxLoginStatus
-	err = json.Unmarshal(byte(content), &wxLoginStatus)
+	fmt.Println(string(bs))
+	content := NewHttp(uuid).Post(url, string(bs))
+	fmt.Println(content)
+	return
+	var wxinitResponse wxinitResponse
+	err = json.Unmarshal([]byte(content), &wxinitResponse)
 	if err != nil {
 		// json解析错误
 		fmt.Println(err.Error())
 	}
-	// TODO::将登陆状态信息放到map中
+
+	if wxinitResponse.BaseResponse.Ret != 0 {
+		fmt.Println("初始化失败！")
+		return
+	}
+
+	// 将登陆状态信息放到map中
+	WxMap[uuid].SyncKey = wxinitResponse.SyncKey
+	WxMap[uuid].SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
+
+	// TODO::初始化联系人
+
+	fmt.Println(wxinitResponse)
 }
 
 // 开启状态通知
@@ -236,14 +304,14 @@ func (user WxLoginStatus) statusNotify() string {
 	if err != nil {
 		// json解析错误
 	}
-	content := NewHttp(user.uuid).Post(url, bs)
+	content := NewHttp(user.uuid).Post(url, string(bs))
 	// TODO::默认不需要在处理信息了
 	type statusNotifyRes struct {
 		BaseResponse BaseResponse
 		MsgID        string
 	}
 	var statusNotify statusNotifyRes
-	err = json.Unmarshal(byte(content), &statusNotify)
+	err = json.Unmarshal([]byte(content), &statusNotify)
 	if err != nil {
 		// json解析错误
 	}
@@ -252,12 +320,12 @@ func (user WxLoginStatus) statusNotify() string {
 
 // 拼接同步key
 func generateSyncKey(synckey SyncKey) string {
-	if len(synckey) > 0 {
-		var syncString string
-		for k, v := range synckey.List {
-			synckey += k + "_" + v
+	if len(synckey.List) > 0 {
+		var syncString bytes.Buffer
+		for _, v := range synckey.List {
+			syncString.WriteString(string(v.Key) + "_" + string(v.Val))
 		}
-		return syncString
+		return syncString.String()
 	}
 	return ""
 }
@@ -276,7 +344,7 @@ func (user WxLoginStatus) getContactList(seq int) {
 		Seq          int
 	}
 	var members Members
-	err := json.Unmarshal(byte(content), &members)
+	err := json.Unmarshal([]byte(content), &members)
 	if err != nil {
 		// json解析错误
 	}
@@ -306,7 +374,7 @@ func (user WxLoginStatus) getBatchGroupMembers() {
 	if err != nil {
 		// json解析错误
 	}
-	content := NewHttp(user.uuid).Post(url, bs)
+	content := NewHttp(user.uuid).Post(url, string(bs))
 	// TODO::默认不需要在处理信息了
 	type GroupMembers struct {
 		BaseResponse BaseResponse
@@ -314,11 +382,19 @@ func (user WxLoginStatus) getBatchGroupMembers() {
 		Count        int
 	}
 	var groupMembers GroupMembers
-	err = json.Unmarshal(byte(content), &groupMembers)
+	err = json.Unmarshal([]byte(content), &groupMembers)
 	if err != nil {
 		// json解析错误
 	}
 
+}
+
+func rands(n int) string {
+	rand.Seed(int64(time.Now().Nanosecond()))
+
+	str := strconv.Itoa(rand.Int())
+	stra := []rune(str)
+	return string(stra[:n])
 }
 
 //
