@@ -11,4 +11,10 @@ func main() {
 func httpGet() {
 
 	cron.Test()
+	//var ts = model.Ts{
+	//	UUID: "23",
+	//	UserName:"dingdayu",
+	//	Time: 123457,
+	//}
+	//model.UpsertTs(ts)
 }

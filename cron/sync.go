@@ -3,6 +3,7 @@ package cron
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/dingdayu/wxbot/simplexml"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"strconv"
@@ -196,6 +197,24 @@ func handleMessage(Msg types.Message) {
 
 func parseXml(xml string) {
 	if strings.HasSuffix(xml, "@") {
-		//content := utils.PregMatch(`(@\S+:\\n)`, xml)
+		content := utils.PregMatch(`(@\S+:\\n)`, xml)
+		// create a document from a reader
+		doc, err := simplexml.NewDocumentFromReader(strings.NewReader(content[1]))
+		if err != nil {
+			panic(err)
+		}
+
+		// get the fizz tag and value
+		fizz := doc.Root().Search().ByName("foo").ByName("fizz").One()
+		if fizz == nil {
+			panic("fizz is missing")
+		}
+
+		fv, err := fizz.Value()
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("fizz: ", fv)
 	}
 }

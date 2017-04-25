@@ -53,3 +53,8 @@ type Message struct {
 	Url                  string
 	VoiceLength          int
 }
+
+type BatchGetContact struct {
+	UserName        string
+	EncryChatRoomId string
+}

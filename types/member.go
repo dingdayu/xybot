@@ -6,10 +6,10 @@ type Member struct {
 	UserName         string
 	NickName         string // 昵称
 	HeadImgUrl       string
-	ContactFlag      int        // 联系人标记，好友1；群2
-	MemberCount      int        // 聊天室成员数量
-	MemberList       RoomMember // 聊天室成员
-	RemarkName       string     // 备注
+	ContactFlag      int          // 联系人标记，好友1；群2;公众号号3，KeyWord："gh_"为订阅号
+	MemberCount      int          // 聊天室成员数量
+	MemberList       []RoomMember // 聊天室成员
+	RemarkName       string       // 备注
 	HideInputBarFlag int
 	Sex              int
 	Signature        string
@@ -21,7 +21,7 @@ type Member struct {
 	RemarkPYQuanPin  string
 	StarFriend       int
 	AppAccountFlag   int
-	Statues          int
+	Statues          int // 0免打扰，1正常
 	AttrStatus       int
 	Province         string // 省份
 	City             string // 城市
@@ -65,7 +65,7 @@ type RoomMember struct {
 	AttrStatus      int
 	DisplayName     string
 	KeyWord         string
-	MemberStatus    string
+	MemberStatus    int
 	NickName        string
 	PYInitial       string // 昵称简拼
 	PYQuanPin       string // 昵称全拼

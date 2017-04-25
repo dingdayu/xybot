@@ -20,7 +20,7 @@ type Http struct {
 }
 
 func init() {
-
+	cookieJarList = make(map[string]*cookiejar.Jar)
 }
 
 //func (j cookiejar.Jar)toJson(ur string)   {
@@ -43,7 +43,9 @@ func NewHttp(uuid string) *Http {
 		if tmp, ok := cookieJarList[uuid]; ok {
 			cookieJar = tmp
 		} else {
+
 			cookieJar, _ = cookiejar.New(nil)
+			cookieJarList[uuid] = cookieJar
 		}
 	} else {
 		cookieJar, _ = cookiejar.New(nil)
@@ -92,7 +94,7 @@ func (h *Http) PostMap(url string, params map[string]string) string {
 
 func (h *Http) Post(url string, post string) string {
 	resp, err := h.Client.Post(url,
-		"text/plain",
+		"application/json, text/plain, */*",
 		strings.NewReader(post))
 	if err != nil {
 		fmt.Println(err)
@@ -102,6 +104,7 @@ func (h *Http) Post(url string, post string) string {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// handle error
+		fmt.Println(err.Error())
 	}
 	return string(body)
 }

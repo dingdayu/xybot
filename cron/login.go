@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/dingdayu/wxbot/model"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,7 +23,7 @@ var baseUri = ""
 type loginXml struct {
 	Skey       string `xml:"skey"`
 	Wxsid      string `xml:"wxsid"`
-	Wxuin      string `xml:"wxuin"`
+	Wxuin      int    `xml:"wxuin"`
 	PassTicket string `xml:"pass_ticket"`
 }
 
@@ -45,12 +47,16 @@ type wxinitResponse struct {
 	User                types.User
 	SyncKey             SyncKey
 	SKey                string
-	ClientVersion       int          // 客户端版本号 637863730
-	ClickReportInterval int          // 单击间隔报告 600000
-	ContactList         types.Member // 最近联系人
-	Count               int          // 最近联系人个数
-	InviteStartCount    int          // 翻译：邀请计数
+	ClientVersion       int            // 客户端版本号 637863730
+	ClickReportInterval int            // 单击间隔报告 600000
+	ContactList         []types.Member // 最近联系人
+	Count               int            // 最近联系人个数
+	InviteStartCount    int            // 翻译：邀请计数
 	ChatSet             string
+	SystemTime          int
+	GrayScale           int
+	MPSubscribeMsgCount int
+	MPSubscribeMsgList  []types.MPSubscribeMsg
 }
 
 //
@@ -58,7 +64,7 @@ type WxLoginStatus struct {
 	uuid        string
 	skey        string
 	sid         string
-	uin         string
+	uin         int
 	passTicket  string
 	BaseRequest baseRequest
 	baseUri     string
@@ -71,7 +77,7 @@ type WxLoginStatus struct {
 
 //wxinit 时需要提交的数据json格式
 type baseRequest struct {
-	Uin      string
+	Uin      int
 	Sid      string
 	Skey     string
 	DeviceID string
@@ -116,6 +122,149 @@ func Xml() {
 
 }
 
+func Js() {
+	js := `{
+"BaseResponse": {
+"Ret": 0,
+"ErrMsg": ""
+}
+,
+"Count": 2,
+"ContactList": [{
+"Uin": 0,
+"UserName": "filehelper",
+"NickName": "文件传输助手",
+"HeadImgUrl": "/cgi-bin/mmwebwx-bin/webwxgeticon?seq=0&username=filehelper&skey=@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
+"ContactFlag": 0,
+"MemberCount": 0,
+"MemberList": [],
+"RemarkName": "",
+"HideInputBarFlag": 0,
+"Sex": 0,
+"Signature": "",
+"VerifyFlag": 0,
+"OwnerUin": 0,
+"PYInitial": "WJCSZS",
+"PYQuanPin": "wenjianchuanshuzhushou",
+"RemarkPYInitial": "",
+"RemarkPYQuanPin": "",
+"StarFriend": 0,
+"AppAccountFlag": 0,
+"Statues": 0,
+"AttrStatus": 0,
+"Province": "",
+"City": "",
+"Alias": "",
+"SnsFlag": 0,
+"UniFriend": 0,
+"DisplayName": "",
+"ChatRoomId": 0,
+"KeyWord": "fil",
+"EncryChatRoomId": "",
+"IsOwner": 0
+}
+,{
+"Uin": 0,
+"UserName": "weixin",
+"NickName": "微信团队",
+"HeadImgUrl": "/cgi-bin/mmwebwx-bin/webwxgeticon?seq=658070034&username=weixin&skey=@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
+"ContactFlag": 3,
+"MemberCount": 0,
+"MemberList": [],
+"RemarkName": "",
+"HideInputBarFlag": 0,
+"Sex": 0,
+"Signature": "微信团队官方帐号",
+"VerifyFlag": 56,
+"OwnerUin": 0,
+"PYInitial": "WXTD",
+"PYQuanPin": "weixintuandui",
+"RemarkPYInitial": "",
+"RemarkPYQuanPin": "",
+"StarFriend": 0,
+"AppAccountFlag": 0,
+"Statues": 0,
+"AttrStatus": 4,
+"Province": "",
+"City": "",
+"Alias": "",
+"SnsFlag": 0,
+"UniFriend": 0,
+"DisplayName": "",
+"ChatRoomId": 0,
+"KeyWord": "wei",
+"EncryChatRoomId": "",
+"IsOwner": 0
+}
+],
+"SyncKey": {
+"Count": 4,
+"List": [{
+"Key": 1,
+"Val": 658070058
+}
+,{
+"Key": 2,
+"Val": 658070059
+}
+,{
+"Key": 3,
+"Val": 658070050
+}
+,{
+"Key": 1000,
+"Val": 1492994161
+}
+]
+}
+,
+"User": {
+"Uin": 2363862471,
+"UserName": "@3b53de9219d5ed41affdbc0018fb7c529b1187ebcbb4de5ebf1bdc7ac99d67f3",
+"NickName": "小雨6",
+"HeadImgUrl": "/cgi-bin/mmwebwx-bin/webwxgeticon?seq=1434526769&username=@3b53de9219d5ed41affdbc0018fb7c529b1187ebcbb4de5ebf1bdc7ac99d67f3&skey=@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
+"RemarkName": "",
+"PYInitial": "",
+"PYQuanPin": "",
+"RemarkPYInitial": "",
+"RemarkPYQuanPin": "",
+"HideInputBarFlag": 0,
+"StarFriend": 0,
+"Sex": 0,
+"Signature": "",
+"AppAccountFlag": 0,
+"VerifyFlag": 0,
+"ContactFlag": 0,
+"WebWxPluginSwitch": 0,
+"HeadImgFlag": 0,
+"SnsFlag": 0
+}
+,
+"ChatSet": "filehelper,weixin,",
+"SKey": "@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
+"ClientVersion": 637863730,
+"SystemTime": 1493005587,
+"GrayScale": 1,
+"InviteStartCount": 40,
+"MPSubscribeMsgCount": 0,
+"MPSubscribeMsgList": [],
+"ClickReportInterval": 600000
+}`
+	var wxinitResponse wxinitResponse
+	err := json.Unmarshal([]byte(js), &wxinitResponse)
+	if err != nil {
+		// json解析错误
+		fmt.Println(err.Error())
+	}
+	for _, item := range wxinitResponse.ContactList {
+		fmt.Println(item)
+		var contact = model.Contact{}
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = wxinitResponse.User.Uin
+		model.AddContact(contact)
+	}
+}
+
 // 获取登陆uuid
 func GetUuid() string {
 	url := "https://login.weixin.qq.com/jslogin"
@@ -155,8 +304,8 @@ func check() {
 // 循环检查登陆
 func waitForLogin(uuid string) {
 	for i := 1; i < 10; i++ {
-		tip := 1
-		url := fmt.Sprintf("https://login.weixin.qq.com/cgi-bin/mmwebwx-bin/login?tip=%s&uuid=%s&_=%s", tip,
+		tip := 0
+		url := fmt.Sprintf("https://login.weixin.qq.com/cgi-bin/mmwebwx-bin/login?tip=%s&uuid=%s&_=%s", strconv.Itoa(tip),
 			uuid, strconv.FormatInt(time.Now().Unix(), 10))
 		content := NewHttp(uuid).Get(url, make(map[string]string))
 
@@ -182,6 +331,7 @@ func waitForLogin(uuid string) {
 
 			fmt.Println("开始拼接登陆状态")
 			if v, ok := WxMap[uuid]; ok {
+				v.uuid = uuid
 				v.baseUri = baseUri
 				v.pushUri = pushUri
 				v.fileUri = fileUri
@@ -203,6 +353,7 @@ func waitForLogin(uuid string) {
 					DeviceID: "e" + rands(15),
 				}
 				WxMap[uuid] = &WxLoginStatus{
+					uuid:        uuid,
 					baseUri:     baseUri,
 					pushUri:     pushUri,
 					fileUri:     fileUri,
@@ -214,7 +365,7 @@ func waitForLogin(uuid string) {
 				}
 			}
 
-			fmt.Println(WxMap[uuid])
+			//fmt.Println(WxMap[uuid])
 			WxMap[uuid].webwxinit(uuid)
 			return
 
@@ -258,10 +409,9 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 	if err != nil {
 		// json解析错误
 	}
-	fmt.Println(string(bs))
+
 	content := NewHttp(uuid).Post(url, string(bs))
-	fmt.Println(content)
-	return
+	//fmt.Println(content)
 	var wxinitResponse wxinitResponse
 	err = json.Unmarshal([]byte(content), &wxinitResponse)
 	if err != nil {
@@ -278,9 +428,35 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 	WxMap[uuid].SyncKey = wxinitResponse.SyncKey
 	WxMap[uuid].SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
 
-	// TODO::初始化联系人
+	// 初始化联系人
+	fmt.Println("初始化联系人")
+	for _, item := range wxinitResponse.ContactList {
+		var contact = model.Contact{}
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = wxinitResponse.User.Uin
+		contact.UUID = uuid
+		contact.ContactType = getContactType(item)
+		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+		model.UpsertContact(&contact)
+	}
 
-	fmt.Println(wxinitResponse)
+	// 保存登陆人资料
+	fmt.Println("初始化个人资料")
+	var dbUser = model.User{}
+	utils.Struct2Struct(wxinitResponse.User, &dbUser)
+	dbUser.UUID = uuid
+	dbUser.Time = int(time.Now().Unix())
+	model.UpsertUser(dbUser)
+
+	// 获取全部的好友列表
+	user.getContactList(0)
+
+	chatRommMembers := model.GetChatRoomContact()
+	batch := []types.BatchGetContact{}
+	for _, v := range chatRommMembers {
+		batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: ""})
+	}
+
 }
 
 // 开启状态通知
@@ -332,11 +508,12 @@ func generateSyncKey(synckey SyncKey) string {
 
 // 获取好友列表
 func (user WxLoginStatus) getContactList(seq int) {
-	url := fmt.Sprintf(user.baseUri+"/webwxgetcontact?pass_ticket=%s&skey=%s&r=%s&seq=%s", user.skey, user.passTicket,
-		strconv.FormatInt(time.Now().Unix(), 10), string(seq))
+	fmt.Println("拉取好友列表")
+	url := fmt.Sprintf(user.baseUri+"/webwxgetcontact?lang=zh_CN&pass_ticket=%s&r=%s&seq=%s&skey=%s", user.passTicket,
+		strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(seq), user.skey)
 
-	content := NewHttp(user.uuid).Post(url, "{}")
-	// TODO::默认不需要在处理信息了
+	content := NewHttp(user.uuid).Get(url, make(map[string]string))
+	//
 	type Members struct {
 		BaseResponse BaseResponse
 		MemberCount  int
@@ -348,14 +525,31 @@ func (user WxLoginStatus) getContactList(seq int) {
 	if err != nil {
 		// json解析错误
 	}
-	// TODO::处理好友列表
+
+	// 初始化联系人
+	for _, item := range members.MemberList {
+		var contact = model.Contact{}
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = user.uin
+		contact.UUID = user.uuid
+		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+		contact.ContactType = getContactType(item)
+		model.UpsertContact(&contact)
+	}
+	fmt.Println(members.MemberCount)
+
 	if members.Seq != 0 {
 		user.getContactList(members.Seq)
 	}
 }
 
-// 获取群成员
-func (user WxLoginStatus) getBatchGroupMembers() {
+// 获取群成员 不要超过50个
+func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
+
+	if len(batch) > 50 {
+		batch = batch[:49]
+	}
+
 	url := fmt.Sprintf(user.baseUri+"/webwxbatchgetcontact?type=ex&r=%s&pass_ticket=%s", strconv.FormatInt(time.Now().Unix(), 10), user.passTicket)
 
 	type postDataStruct struct {
@@ -368,7 +562,8 @@ func (user WxLoginStatus) getBatchGroupMembers() {
 	}
 	var postData *postDataStruct = &postDataStruct{
 		BaseRequest: user.BaseRequest,
-		Count:       0,
+		Count:       len(batch),
+		List:        batch,
 	}
 	bs, err := json.Marshal(postData)
 	if err != nil {
@@ -386,6 +581,16 @@ func (user WxLoginStatus) getBatchGroupMembers() {
 	if err != nil {
 		// json解析错误
 	}
+	// TODO::初始化联系人,根据username更新资料
+	for _, item := range groupMembers.ContactList {
+		var contact = model.Contact{}
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = user.uin
+		contact.UUID = user.uuid
+		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+		contact.ContactType = getContactType(item)
+		model.UpsertContact(&contact)
+	}
 
 }
 
@@ -397,12 +602,27 @@ func rands(n int) string {
 	return string(stra[:n])
 }
 
-//
-//func webwxinit()  {
-//	url := baseUrl + "/webwxinit?r=" + strconv.FormatInt(time.Now().Unix(), 10);
-//
-//}
-//
-//func statusNotify() {
-//	baseUrl + "/webwxstatusnotify?lang=zh_CN&pass_ticket=" + passTicket;
-//}
+// 获取账号类型
+func getContactType(member types.Member) string {
+	// 检查系统号
+	for _, v := range types.SPECIAL_USERS {
+		if member.UserName == v {
+			return "System"
+		}
+	}
+	for _, v := range types.SPECIAL_USERS_NAME {
+		if member.NickName == v {
+			return "System"
+		}
+	}
+
+	if strings.HasPrefix(member.UserName, "@@") {
+		return "ChatRooms"
+	}
+
+	if member.KeyWord == "gh_" {
+		return "MPSubscribe"
+	}
+
+	return "Friends"
+}

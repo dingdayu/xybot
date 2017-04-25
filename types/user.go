@@ -1,17 +1,25 @@
 package types
 
 type User struct {
-	HeadImgUrl        string
+	Uin               int
 	UserName          string
-	Uit               int
 	NickName          string
-	RemarkNam         string
+	HeadImgUrl        string
+	RemarkName        string
+	PYInitial         string
+	PYQuanPin         string
+	RemarkPYInitial   string
+	RemarkPYQuanPin   string
+	HideInputBarFlag  int
+	StarFriend        int
 	Sex               int
 	Signature         string
-	SnsFlag           int
-	StarFriend        int
+	AppAccountFlag    int
 	VerifyFlag        int
+	ContactFlag       int
 	WebWxPluginSwitch int
+	HeadImgFlag       int
+	SnsFlag           int
 }
 
 type Profile struct {
@@ -43,6 +51,10 @@ var SPECIAL_USERS = []string{"newsapp", "fmessage", "filehelper", "weibo", "qqma
 	"lbsapp", "shakeapp", "medianote", "qqfriend", "readerapp",
 	"blogapp", "facebookapp", "masssendapp", "meishiapp",
 	"feedsapp", "voip", "blogappweixin", "weixin", "brandsessionholder",
-	"weixinreminder", "wxid_novlwrv3lqwv11", "gh_22b87fa7cb3c",
+	"weixinreminder", "wxid_novlwrv3lqwv11",
 	"officialaccounts", "notification_messages", "wxid_novlwrv3lqwv11",
 	"gh_22b87fa7cb3c", "wxitil", "userexperience_alarm", "notification_messages"}
+
+var SPECIAL_USERS_NAME = []string{
+	"微信运动",
+}
