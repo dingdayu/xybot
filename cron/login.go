@@ -62,14 +62,16 @@ type wxinitResponse struct {
 //
 type WxLoginStatus struct {
 	uuid        string
-	skey        string
-	sid         string
-	uin         int
 	passTicket  string
 	BaseRequest baseRequest
-	baseUri     string
-	fileUri     string
-	pushUri     string
+	LoginUser   types.User
+
+	// 联系人
+	ContactList map[string]types.Member
+
+	baseUri string
+	fileUri string
+	pushUri string
 
 	SyncKey    SyncKey
 	SyncKeyStr string
@@ -330,37 +332,27 @@ func waitForLogin(uuid string) {
 			loginXm := startLogin(uuid, redirectUri)
 
 			fmt.Println("开始拼接登陆状态")
+
+			baseRequest := baseRequest{
+				Uin:      loginXm.Wxuin,
+				Sid:      loginXm.Wxsid,
+				Skey:     loginXm.Skey,
+				DeviceID: "e" + rands(15),
+			}
 			if v, ok := WxMap[uuid]; ok {
 				v.uuid = uuid
 				v.baseUri = baseUri
 				v.pushUri = pushUri
 				v.fileUri = fileUri
 				v.passTicket = loginXm.PassTicket
-				v.skey = loginXm.Skey
-				v.sid = loginXm.Wxsid
-				v.uin = loginXm.Wxuin
-				v.BaseRequest = baseRequest{
-					Uin:      loginXm.Wxuin,
-					Sid:      loginXm.Wxsid,
-					Skey:     loginXm.Skey,
-					DeviceID: "e" + rands(15),
-				}
+				v.BaseRequest = baseRequest
 			} else {
-				baseRequest := baseRequest{
-					Uin:      loginXm.Wxuin,
-					Sid:      loginXm.Wxsid,
-					Skey:     loginXm.Skey,
-					DeviceID: "e" + rands(15),
-				}
 				WxMap[uuid] = &WxLoginStatus{
 					uuid:        uuid,
 					baseUri:     baseUri,
 					pushUri:     pushUri,
 					fileUri:     fileUri,
 					passTicket:  loginXm.PassTicket,
-					sid:         loginXm.Wxsid,
-					uin:         loginXm.Wxuin,
-					skey:        loginXm.Skey,
 					BaseRequest: baseRequest,
 				}
 			}
@@ -442,6 +434,8 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 
 	// 保存登陆人资料
 	fmt.Println("初始化个人资料")
+	// 复制登陆资料
+	user.LoginUser = wxinitResponse.User
 	var dbUser = model.User{}
 	utils.Struct2Struct(wxinitResponse.User, &dbUser)
 	dbUser.UUID = uuid
@@ -510,7 +504,7 @@ func generateSyncKey(synckey SyncKey) string {
 func (user WxLoginStatus) getContactList(seq int) {
 	fmt.Println("拉取好友列表")
 	url := fmt.Sprintf(user.baseUri+"/webwxgetcontact?lang=zh_CN&pass_ticket=%s&r=%s&seq=%s&skey=%s", user.passTicket,
-		strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(seq), user.skey)
+		strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(seq), user.BaseRequest.Skey)
 
 	content := NewHttp(user.uuid).Get(url, make(map[string]string))
 	//
@@ -530,7 +524,7 @@ func (user WxLoginStatus) getContactList(seq int) {
 	for _, item := range members.MemberList {
 		var contact = model.Contact{}
 		utils.Struct2Struct(item, &contact)
-		contact.LoginUin = user.uin
+		contact.LoginUin = user.BaseRequest.Uin
 		contact.UUID = user.uuid
 		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
 		contact.ContactType = getContactType(item)
@@ -570,7 +564,7 @@ func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 		// json解析错误
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
-	// TODO::默认不需要在处理信息了
+	//
 	type GroupMembers struct {
 		BaseResponse BaseResponse
 		ContactList  []types.Member
@@ -585,7 +579,7 @@ func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 	for _, item := range groupMembers.ContactList {
 		var contact = model.Contact{}
 		utils.Struct2Struct(item, &contact)
-		contact.LoginUin = user.uin
+		contact.LoginUin = user.BaseRequest.Uin
 		contact.UUID = user.uuid
 		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
 		contact.ContactType = getContactType(item)
@@ -594,6 +588,7 @@ func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 
 }
 
+// 随机数字符串
 func rands(n int) string {
 	rand.Seed(int64(time.Now().Nanosecond()))
 
