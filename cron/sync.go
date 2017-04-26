@@ -76,7 +76,7 @@ func handleCheckSync(selector string) {
 
 // 获取新消息
 func (user WxLoginStatus) Sync() {
-	url := fmt.Sprintf(user.baseUri+"/webwxsync?sid=%s&skey=%s&lang=zh_CN&pass_ticket=%s", user.sid, user.skey, user.passTicket)
+	url := fmt.Sprintf(user.baseUri+"/webwxsync?sid=%s&skey=%s&lang=zh_CN&pass_ticket=%s", user.BaseRequest.Sid, user.BaseRequest.Skey, user.passTicket)
 
 	type postDataStruct struct {
 		BaseRequest baseRequest

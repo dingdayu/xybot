@@ -58,3 +58,7 @@ var SPECIAL_USERS = []string{"newsapp", "fmessage", "filehelper", "weibo", "qqma
 var SPECIAL_USERS_NAME = []string{
 	"微信运动",
 }
+
+var ENTERPRISE_NAME = []string{
+	"微信摇一摇周边",
+}

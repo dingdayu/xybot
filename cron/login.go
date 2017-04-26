@@ -387,7 +387,7 @@ func startLogin(uuid string, redirectUri string) loginXml {
 }
 
 // 获取个人信息及最近聊天
-func (user WxLoginStatus) webwxinit(uuid string) {
+func (user *WxLoginStatus) webwxinit(uuid string) {
 	url := fmt.Sprintf(user.baseUri+"/webwxinit?r=%d&lang=zh_CN&pass_ticket=%s", strconv.FormatInt(time.Now().Unix(), 10), user.passTicket)
 
 	//
@@ -417,20 +417,8 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 	}
 
 	// 将登陆状态信息放到map中
-	WxMap[uuid].SyncKey = wxinitResponse.SyncKey
-	WxMap[uuid].SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
-
-	// 初始化联系人
-	fmt.Println("初始化联系人")
-	for _, item := range wxinitResponse.ContactList {
-		var contact = model.Contact{}
-		utils.Struct2Struct(item, &contact)
-		contact.LoginUin = wxinitResponse.User.Uin
-		contact.UUID = uuid
-		contact.ContactType = getContactType(item)
-		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
-		model.UpsertContact(&contact)
-	}
+	user.SyncKey = wxinitResponse.SyncKey
+	user.SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
 
 	// 保存登陆人资料
 	fmt.Println("初始化个人资料")
@@ -442,6 +430,20 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 	dbUser.Time = int(time.Now().Unix())
 	model.UpsertUser(dbUser)
 
+	// 初始化联系人
+	fmt.Println("初始化联系人")
+	// TODO::对初始化联系人进行标示
+	for _, item := range wxinitResponse.ContactList {
+		var contact = model.Contact{}
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = wxinitResponse.User.Uin
+		contact.UUID = uuid
+		contact.ContactType = getContactType(item, user.LoginUser.UserName)
+		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+		model.UpsertContact(&contact)
+	}
+	// TODO::复制联系人对象
+
 	// 获取全部的好友列表
 	user.getContactList(0)
 
@@ -450,11 +452,12 @@ func (user WxLoginStatus) webwxinit(uuid string) {
 	for _, v := range chatRommMembers {
 		batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: ""})
 	}
+	user.getBatchGroupMembers(batch)
 
 }
 
 // 开启状态通知
-func (user WxLoginStatus) statusNotify() string {
+func (user *WxLoginStatus) statusNotify() string {
 	url := fmt.Sprintf(user.baseUri+"/webwxstatusnotify?lang=zh_CN&pass_ticket=%s", user.passTicket)
 	type postDataStruct struct {
 		BaseRequest  baseRequest
@@ -501,7 +504,7 @@ func generateSyncKey(synckey SyncKey) string {
 }
 
 // 获取好友列表
-func (user WxLoginStatus) getContactList(seq int) {
+func (user *WxLoginStatus) getContactList(seq int) {
 	fmt.Println("拉取好友列表")
 	url := fmt.Sprintf(user.baseUri+"/webwxgetcontact?lang=zh_CN&pass_ticket=%s&r=%s&seq=%s&skey=%s", user.passTicket,
 		strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(seq), user.BaseRequest.Skey)
@@ -527,7 +530,7 @@ func (user WxLoginStatus) getContactList(seq int) {
 		contact.LoginUin = user.BaseRequest.Uin
 		contact.UUID = user.uuid
 		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
-		contact.ContactType = getContactType(item)
+		contact.ContactType = getContactType(item, user.LoginUser.UserName)
 		model.UpsertContact(&contact)
 	}
 	fmt.Println(members.MemberCount)
@@ -538,7 +541,7 @@ func (user WxLoginStatus) getContactList(seq int) {
 }
 
 // 获取群成员 不要超过50个
-func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
+func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 
 	if len(batch) > 50 {
 		batch = batch[:49]
@@ -549,10 +552,7 @@ func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 	type postDataStruct struct {
 		BaseRequest baseRequest
 		Count       int
-		List        []struct {
-			EncryChatRoomId string
-			UserName        string
-		}
+		List        []types.BatchGetContact
 	}
 	var postData *postDataStruct = &postDataStruct{
 		BaseRequest: user.BaseRequest,
@@ -582,7 +582,7 @@ func (user WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 		contact.LoginUin = user.BaseRequest.Uin
 		contact.UUID = user.uuid
 		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
-		contact.ContactType = getContactType(item)
+		contact.ContactType = getContactType(item, user.LoginUser.UserName)
 		model.UpsertContact(&contact)
 	}
 
@@ -598,7 +598,7 @@ func rands(n int) string {
 }
 
 // 获取账号类型
-func getContactType(member types.Member) string {
+func getContactType(member types.Member, selfUserName string) string {
 	// 检查系统号
 	for _, v := range types.SPECIAL_USERS {
 		if member.UserName == v {
@@ -611,12 +611,19 @@ func getContactType(member types.Member) string {
 		}
 	}
 
+	// 会有一些被注销的公众号，相比通讯录多出几个,企业号也在里面
+	if member.VerifyFlag&8 != 0 {
+		return "MP"
+	}
+
+	// 未保存到通讯录，但最近有过消息的依然会在这里面，相比通讯录会多出几个
 	if strings.HasPrefix(member.UserName, "@@") {
 		return "ChatRooms"
 	}
 
-	if member.KeyWord == "gh_" {
-		return "MPSubscribe"
+	// 相比于通讯录 总好友数 会少一个，因为那是自己
+	if selfUserName == member.UserName {
+		return "Self"
 	}
 
 	return "Friends"

@@ -116,10 +116,11 @@ func PageContact() []Contact {
 	return persons
 }
 
+// 获取聊天室的记录
 func GetChatRoomContact() []Contact {
 	var contact []Contact
 	query := func(c *mgo.Collection) error {
-		return c.Find(nil).All(&contact)
+		return c.Find(bson.M{"contact_type": "ChatRooms"}).All(&contact)
 	}
 	err := witchCollection(CONTACT_COLLECTION_NAME, query)
 	if err != nil {
