@@ -79,8 +79,8 @@ func AddContact(p Contact) string {
 
 func UpsertContact(p *Contact) {
 	query := func(c *mgo.Collection) error {
-		changeInfo, err := c.Upsert(bson.M{"username": p.UserName}, bson.M{"$set": p})
-		fmt.Printf("%+v\n", changeInfo)
+		_, err := c.Upsert(bson.M{"username": p.UserName}, bson.M{"$set": p})
+		//fmt.Printf("%+v\n", changeInfo)
 		return err
 
 	}

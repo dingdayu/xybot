@@ -39,6 +39,11 @@ type User struct {
 func AddUser(p User) string {
 	p.Id = bson.NewObjectId()
 	query := func(c *mgo.Collection) error {
+		c.EnsureIndex(mgo.Index{
+			Key:    []string{"uin", "uuid"},
+			Unique: true,
+			Name:   "uin_uuid",
+		})
 		return c.Insert(p)
 	}
 	err := witchCollection(USERS_COLLECTION_NAME, query)
@@ -50,13 +55,8 @@ func AddUser(p User) string {
 
 func UpsertUser(u User) {
 	query := func(c *mgo.Collection) error {
-		c.EnsureIndex(mgo.Index{
-			Key:    []string{"uin", "uuid"},
-			Unique: true,
-			Name:   "uin_uuid",
-		})
-		changeInfo, err := c.Upsert(bson.M{"uuid": u.UUID, "uin": u.Uin}, bson.M{"$set": u})
-		fmt.Printf("%+v\n", changeInfo)
+		_, err := c.Upsert(bson.M{"uuid": u.UUID, "uin": u.Uin}, bson.M{"$set": u})
+		//fmt.Printf("%+v\n", changeInfo)
 		return err
 
 	}

@@ -106,7 +106,6 @@ func init() {
 }
 
 func Test() {
-
 	done := make(chan struct{})
 
 	fmt.Println("开始登陆:")
@@ -130,149 +129,6 @@ func Xml() {
 	}
 	fmt.Println(data)
 
-}
-
-func Js() {
-	js := `{
-"BaseResponse": {
-"Ret": 0,
-"ErrMsg": ""
-}
-,
-"Count": 2,
-"ContactList": [{
-"Uin": 0,
-"UserName": "filehelper",
-"NickName": "文件传输助手",
-"HeadImgUrl": "/cgi-bin/mmwebwx-bin/webwxgeticon?seq=0&username=filehelper&skey=@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
-"ContactFlag": 0,
-"MemberCount": 0,
-"MemberList": [],
-"RemarkName": "",
-"HideInputBarFlag": 0,
-"Sex": 0,
-"Signature": "",
-"VerifyFlag": 0,
-"OwnerUin": 0,
-"PYInitial": "WJCSZS",
-"PYQuanPin": "wenjianchuanshuzhushou",
-"RemarkPYInitial": "",
-"RemarkPYQuanPin": "",
-"StarFriend": 0,
-"AppAccountFlag": 0,
-"Statues": 0,
-"AttrStatus": 0,
-"Province": "",
-"City": "",
-"Alias": "",
-"SnsFlag": 0,
-"UniFriend": 0,
-"DisplayName": "",
-"ChatRoomId": 0,
-"KeyWord": "fil",
-"EncryChatRoomId": "",
-"IsOwner": 0
-}
-,{
-"Uin": 0,
-"UserName": "weixin",
-"NickName": "微信团队",
-"HeadImgUrl": "/cgi-bin/mmwebwx-bin/webwxgeticon?seq=658070034&username=weixin&skey=@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
-"ContactFlag": 3,
-"MemberCount": 0,
-"MemberList": [],
-"RemarkName": "",
-"HideInputBarFlag": 0,
-"Sex": 0,
-"Signature": "微信团队官方帐号",
-"VerifyFlag": 56,
-"OwnerUin": 0,
-"PYInitial": "WXTD",
-"PYQuanPin": "weixintuandui",
-"RemarkPYInitial": "",
-"RemarkPYQuanPin": "",
-"StarFriend": 0,
-"AppAccountFlag": 0,
-"Statues": 0,
-"AttrStatus": 4,
-"Province": "",
-"City": "",
-"Alias": "",
-"SnsFlag": 0,
-"UniFriend": 0,
-"DisplayName": "",
-"ChatRoomId": 0,
-"KeyWord": "wei",
-"EncryChatRoomId": "",
-"IsOwner": 0
-}
-],
-"SyncKey": {
-"Count": 4,
-"List": [{
-"Key": 1,
-"Val": 658070058
-}
-,{
-"Key": 2,
-"Val": 658070059
-}
-,{
-"Key": 3,
-"Val": 658070050
-}
-,{
-"Key": 1000,
-"Val": 1492994161
-}
-]
-}
-,
-"User": {
-"Uin": 2363862471,
-"UserName": "@3b53de9219d5ed41affdbc0018fb7c529b1187ebcbb4de5ebf1bdc7ac99d67f3",
-"NickName": "小雨6",
-"HeadImgUrl": "/cgi-bin/mmwebwx-bin/webwxgeticon?seq=1434526769&username=@3b53de9219d5ed41affdbc0018fb7c529b1187ebcbb4de5ebf1bdc7ac99d67f3&skey=@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
-"RemarkName": "",
-"PYInitial": "",
-"PYQuanPin": "",
-"RemarkPYInitial": "",
-"RemarkPYQuanPin": "",
-"HideInputBarFlag": 0,
-"StarFriend": 0,
-"Sex": 0,
-"Signature": "",
-"AppAccountFlag": 0,
-"VerifyFlag": 0,
-"ContactFlag": 0,
-"WebWxPluginSwitch": 0,
-"HeadImgFlag": 0,
-"SnsFlag": 0
-}
-,
-"ChatSet": "filehelper,weixin,",
-"SKey": "@crypt_3cc836df_d87639179f41792d916c08038b2ffc50",
-"ClientVersion": 637863730,
-"SystemTime": 1493005587,
-"GrayScale": 1,
-"InviteStartCount": 40,
-"MPSubscribeMsgCount": 0,
-"MPSubscribeMsgList": [],
-"ClickReportInterval": 600000
-}`
-	var wxinitResponse wxinitResponse
-	err := json.Unmarshal([]byte(js), &wxinitResponse)
-	if err != nil {
-		// json解析错误
-		fmt.Println(err.Error())
-	}
-	for _, item := range wxinitResponse.ContactList {
-		fmt.Println(item)
-		var contact = model.Contact{}
-		utils.Struct2Struct(item, &contact)
-		contact.LoginUin = wxinitResponse.User.Uin
-		model.AddContact(contact)
-	}
 }
 
 // 获取登陆uuid
@@ -320,7 +176,7 @@ func waitForLogin(uuid string) {
 		content := NewHttp(uuid).Get(url, make(map[string]string))
 
 		code := utils.PregMatch(`window.code=(\d+);`, content)
-		fmt.Println(code)
+
 		switch code[0] {
 		case "201":
 			fmt.Println("请点击微信登陆推送！")
@@ -434,6 +290,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 
 	// 保存登陆人资料
 	fmt.Println("初始化个人资料")
+	wxinitResponse.User.NickName = EmojiHandle(wxinitResponse.User.NickName)
 	// 复制登陆资料
 	user.LoginUser = wxinitResponse.User
 	var dbUser = model.User{}
@@ -446,6 +303,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 	fmt.Println("初始化联系人")
 	// TODO::保存最近联系人里的群，公众号，联系人
 	for _, item := range wxinitResponse.ContactList {
+		item.NickName = EmojiHandle(item.NickName)
 		var contact = model.Contact{}
 		utils.Struct2Struct(item, &contact)
 		contact.LoginUin = wxinitResponse.User.Uin
@@ -467,6 +325,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 	groupMembers := user.getBatchGroupMembers(batch)
 	for _, item := range groupMembers.ContactList {
 		var contact = model.Contact{}
+		item.NickName = EmojiHandle(item.NickName)
 		utils.Struct2Struct(item, &contact)
 		contact.LoginUin = user.BaseRequest.Uin
 		contact.UUID = user.uuid
@@ -476,6 +335,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 		// 将群成员加入成员表
 		if len(item.MemberList) > 0 {
 			for _, items := range item.MemberList {
+				items.NickName = EmojiHandle(items.NickName)
 				var member = model.Member{}
 				utils.Struct2Struct(items, &member)
 				member.HeadImgUrl = user.baseUri + member.HeadImgUrl
@@ -562,6 +422,7 @@ func (user *WxLoginStatus) getContactList(seq int) {
 	// 初始化联系人
 	for _, item := range members.MemberList {
 		var contact = model.Contact{}
+		item.NickName = EmojiHandle(item.NickName)
 		utils.Struct2Struct(item, &contact)
 		contact.LoginUin = user.BaseRequest.Uin
 		contact.UUID = user.uuid
@@ -569,7 +430,7 @@ func (user *WxLoginStatus) getContactList(seq int) {
 		contact.ContactType = getContactType(item, user.LoginUser.UserName)
 		model.UpsertContact(&contact)
 	}
-	fmt.Println(members.MemberCount)
+	fmt.Println("好友数量: " + strconv.Itoa(members.MemberCount))
 
 	if members.Seq != 0 {
 		user.getContactList(members.Seq)

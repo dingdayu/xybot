@@ -238,16 +238,25 @@ func parseXml(xml string) {
 	}
 }
 
+// 替换消息体
 func FormatContent(content string) string {
 	// 替换回车
 	content = strings.Replace(content, "<br/>", "\n", -1)
 	// 将html转义实例化
 	content = html.UnescapeString(content)
+	content = EmojiHandle(content)
 
+	return content
+}
+
+// 处理 Emoji 表情
+func EmojiHandle(content string) string {
 	emoji := utils.PregMatch(`<span class="emoji emoji(.{1,10})"><\/span>`, content)
+	if len(emoji) <= 0 {
+		return content
+	}
 	re := regexp.MustCompile(`<span class="emoji emoji(.{1,10})"><\/span>`)
 	src := re.FindAllString(content, -1)
-
 	for k, v := range emoji {
 		emjo := html.UnescapeString("&#x" + v + ";")
 		content = strings.Replace(content, src[k], emjo, -1)
