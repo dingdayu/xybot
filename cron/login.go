@@ -65,10 +65,10 @@ type WxLoginStatus struct {
 	uuid        string
 	passTicket  string
 	BaseRequest baseRequest
-	LoginUser   types.User
 
 	// 联系人
 	ContactList []types.Member
+	LoginUser   types.User
 
 	baseUri string
 	fileUri string
@@ -482,48 +482,28 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 		}
 	}
 
-	// TODO::获取所有群成员的资料信息
-	fmt.Println("第二次 更新群成员资料")
-	count := model.GetMemberCount(bson.M{"uuid": user.uuid})
-	page := count / 50
-	for i := 1; i < page; i++ {
-		time.Sleep(2e9)
-		fmt.Println("更新群成员资料：第" + strconv.Itoa(i) + "页,共" + strconv.Itoa(page) + "页")
-		members := model.GetLimitMember(50, i*50)
-		batch := []types.BatchGetContact{}
-		for _, v := range *members {
-			batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: v.ChatRoomUserName})
+	go func() {
+		for {
+			user.CheckSync()
 		}
-		groupMembers := user.getBatchGroupMembers(batch)
-		for _, item := range groupMembers.ContactList {
-			var contact = model.Member{}
-			utils.Struct2Struct(item, &contact)
-			contact.LoginUin = user.BaseRequest.Uin
-			contact.UUID = user.uuid
-			contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
-			model.UpsertMember(&contact)
-		}
-	}
-
-	user.CheckSync()
+	}()
 
 }
 
 // 开启状态通知
 func (user *WxLoginStatus) statusNotify() string {
 	url := fmt.Sprintf(user.baseUri+"/webwxstatusnotify?lang=zh_CN&pass_ticket=%s", user.passTicket)
-	type postDataStruct struct {
+	postData := struct {
 		BaseRequest  baseRequest
 		Code         int
 		FromUserName string
 		ToUserName   string
 		ClientMsgId  int
-	}
-	var postData *postDataStruct = &postDataStruct{
+	}{
 		BaseRequest:  user.BaseRequest,
 		Code:         3,
-		FromUserName: "", // 登陆用的username ，在 webwxinit中获得
-		ToUserName:   "", // 同上
+		FromUserName: user.LoginUser.UserName, // 登陆用的username ，在 webwxinit中获得
+		ToUserName:   user.LoginUser.UserName, // 同上
 		ClientMsgId:  int(time.Now().Unix()),
 	}
 	bs, err := json.Marshal(postData)
@@ -532,11 +512,10 @@ func (user *WxLoginStatus) statusNotify() string {
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	// TODO::默认不需要在处理信息了
-	type statusNotifyRes struct {
+	statusNotify := struct {
 		BaseResponse BaseResponse
 		MsgID        string
-	}
-	var statusNotify statusNotifyRes
+	}{}
 	err = json.Unmarshal([]byte(content), &statusNotify)
 	if err != nil {
 		// json解析错误
@@ -628,7 +607,33 @@ func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) G
 	return groupMembers
 }
 
-func (user *WxLoginStatus) accountLogout() {
+// 同步群成员的详细资料
+func (user *WxLoginStatus) UpdateChatRoomSMembers() {
+	fmt.Println("同步群成员的详细资料")
+	count := model.GetMemberCount(bson.M{"uuid": user.uuid})
+	page := (count + 50 - 1) / 50
+	for i := 1; i <= page; i++ {
+		time.Sleep(2e9)
+		fmt.Println("更新群成员资料：第" + strconv.Itoa(i) + "页,共" + strconv.Itoa(page) + "页")
+		members := model.GetLimitMember(50, i*50)
+		batch := []types.BatchGetContact{}
+		for _, v := range *members {
+			batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: v.ChatRoomUserName})
+		}
+		groupMembers := user.getBatchGroupMembers(batch)
+		for _, item := range groupMembers.ContactList {
+			var contact = model.Member{}
+			utils.Struct2Struct(item, &contact)
+			contact.LoginUin = user.BaseRequest.Uin
+			contact.UUID = user.uuid
+			contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+			model.UpsertMember(&contact)
+		}
+	}
+}
+
+// 登出
+func (user *WxLoginStatus) Logout() {
 	url := fmt.Sprintf(user.baseUri+"/webwxlogout?redirect=1&type=1&skey=%s", user.BaseRequest.Skey)
 
 	type postDataStruct struct {
