@@ -6,13 +6,13 @@ import (
 	"github.com/dingdayu/wxbot/simplexml"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
+	"html"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
-
-var host = ""
 
 func init() {
 
@@ -52,8 +52,8 @@ func (user *WxLoginStatus) CheckSync() {
 	content := NewHttp(user.uuid).Get(url, data)
 	ret := utils.PregMatch(`window.synccheck=\{retcode:"(\d+)",selector:"(\d+)"\}`, content)
 
-	retcode := ret[1]
-	selector := ret[2]
+	retcode := ret[0]
+	selector := ret[1]
 	if retcode == "1100" || retcode == "1101" {
 		fmt.Println("微信客户端正常退出")
 	}
@@ -62,6 +62,7 @@ func (user *WxLoginStatus) CheckSync() {
 	}
 
 	if retcode == "1101" {
+		fmt.Println(content)
 		fmt.Println("从其它设备上登了网页微信！")
 		os.Exit(0)
 	}
@@ -155,7 +156,7 @@ func handleMessage(Msg types.Message) {
 
 		// 通过好友验证消息
 		// 文本消息
-		fmt.Println(Msg.Content)
+		fmt.Println(FormatContent(Msg.Content))
 
 	case 3:
 		// 图片消息
@@ -235,4 +236,21 @@ func parseXml(xml string) {
 
 		fmt.Println("fizz: ", fv)
 	}
+}
+
+func FormatContent(content string) string {
+	// 替换回车
+	content = strings.Replace(content, "<br/>", "\n", -1)
+	// 将html转义实例化
+	content = html.UnescapeString(content)
+
+	emoji := utils.PregMatch(`<span class="emoji emoji(.{1,10})"><\/span>`, content)
+	re := regexp.MustCompile(`<span class="emoji emoji(.{1,10})"><\/span>`)
+	src := re.FindAllString(content, -1)
+
+	for k, v := range emoji {
+		emjo := html.UnescapeString("&#x" + v + ";")
+		content = strings.Replace(content, src[k], emjo, -1)
+	}
+	return content
 }

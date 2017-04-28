@@ -2,18 +2,24 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"gopkg.in/mgo.v2/bson"
 	"reflect"
 	"regexp"
 )
 
-func PregMatch(pattern string, content string) []string {
-	reg, err := regexp.Compile(pattern)
-	if err != nil {
-		fmt.Println(err.Error())
+func PregMatch(pattern string, content string) (str []string) {
+	reg := regexp.MustCompile(pattern)
+	me := reg.FindAllStringSubmatch(content, -1)
+	for _, v := range me {
+		if len(v) > 2 {
+			for i := 1; i < len(v); i++ {
+				str = append(str, v[i])
+			}
+		} else {
+			str = append(str, v[1])
+		}
 	}
-	return reg.FindStringSubmatch(content)
+	return str
 }
 
 func Struct2Map(obj interface{}) map[string]interface{} {

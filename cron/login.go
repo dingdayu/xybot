@@ -285,14 +285,14 @@ func GetUuid() string {
 	data["_"] = strconv.FormatInt(time.Now().Unix(), 10)
 
 	content := NewHttp("").Get(url, data)
-	fmt.Println(content)
 
 	str := utils.PregMatch(`window.QRLogin.code = (\d+); window.QRLogin.uuid = \"(\S+?)\"`, content)
 	if str == nil {
 		fmt.Println("[ERROR] 请求UUID错误！")
 		return ""
 	}
-	return str[2]
+	fmt.Println(str)
+	return str[1]
 }
 
 // 下载二维码
@@ -315,26 +315,31 @@ func check() {
 func waitForLogin(uuid string) {
 	for i := 1; i < 10; i++ {
 		tip := 0
-		url := fmt.Sprintf("https://login.weixin.qq.com/cgi-bin/mmwebwx-bin/login?tip=%s&uuid=%s&_=%s", strconv.Itoa(tip),
+		url := fmt.Sprintf("https://login.weixin.qq.com/cgi-bin/mmwebwx-bin/login?loginicon=true&tip=%s&uuid=%s&_=%s", strconv.Itoa(tip),
 			uuid, strconv.FormatInt(time.Now().Unix(), 10))
 		content := NewHttp(uuid).Get(url, make(map[string]string))
 
 		code := utils.PregMatch(`window.code=(\d+);`, content)
-
-		switch code[1] {
+		fmt.Println(code)
+		switch code[0] {
 		case "201":
 			fmt.Println("请点击微信登陆推送！")
-			avater := utils.PregMatch(`(\S+?)window.userAvatar = '(\S+?)'`, content)
-			fmt.Println(avater)
+			avater := utils.PregMatch(`window.userAvatar = '(\S+?)';`, content)
+			if len(avater) > 1 {
+				fmt.Println(avater[0])
+			} else {
+				fmt.Println(content)
+			}
+
 			tip = 0
 		case "200":
 			matches := utils.PregMatch(`window.redirect_uri="(https:\/\/(\S+?)\/\S+?)";`, content)
 
-			redirectUri = matches[1] + "&fun=new"
+			redirectUri = matches[0] + "&fun=new"
 			url := "https://%s/cgi-bin/mmwebwx-bin"
-			fileUri = fmt.Sprintf(url, "file."+matches[2])
-			pushUri = fmt.Sprintf(url, "webpush."+matches[2])
-			baseUri = fmt.Sprintf(url, matches[2])
+			fileUri = fmt.Sprintf(url, "file."+matches[1])
+			pushUri = fmt.Sprintf(url, "webpush."+matches[1])
+			baseUri = fmt.Sprintf(url, matches[1])
 
 			fmt.Println("开始请求xml")
 			loginXm := startLogin(uuid, redirectUri)
