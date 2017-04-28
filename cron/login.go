@@ -482,11 +482,10 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 		}
 	}
 
-	go func() {
-		for {
-			user.CheckSync()
-		}
-	}()
+	for {
+		user.CheckSync()
+		time.Sleep(2e9)
+	}
 
 }
 
@@ -528,9 +527,9 @@ func generateSyncKey(synckey SyncKey) string {
 	if len(synckey.List) > 0 {
 		var syncString bytes.Buffer
 		for _, v := range synckey.List {
-			syncString.WriteString(string(v.Key) + "_" + string(v.Val))
+			syncString.WriteString(strconv.Itoa(v.Key) + "_" + strconv.Itoa(v.Val) + "|")
 		}
-		return syncString.String()
+		return strings.Trim(syncString.String(), "|")
 	}
 	return ""
 }
@@ -576,19 +575,16 @@ func (user *WxLoginStatus) getContactList(seq int) {
 // 通常用于群资料和群成员资料
 // 每次最多50个
 func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) GroupMembers {
-
 	if len(batch) > 50 {
 		batch = batch[:49]
 	}
-
 	url := fmt.Sprintf(user.baseUri+"/webwxbatchgetcontact?type=ex&r=%s&pass_ticket=%s", strconv.FormatInt(time.Now().Unix(), 10), user.passTicket)
 
-	type postDataStruct struct {
+	postData := &struct {
 		BaseRequest baseRequest
 		Count       int
 		List        []types.BatchGetContact
-	}
-	var postData *postDataStruct = &postDataStruct{
+	}{
 		BaseRequest: user.BaseRequest,
 		Count:       len(batch),
 		List:        batch,
@@ -598,7 +594,6 @@ func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) G
 		// json解析错误
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
-	//
 	var groupMembers GroupMembers
 	err = json.Unmarshal([]byte(content), &groupMembers)
 	if err != nil {
@@ -650,7 +645,6 @@ func (user *WxLoginStatus) Logout() {
 		// json解析错误
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
-	//
 	fmt.Println(content)
 }
 

@@ -6,6 +6,7 @@ import (
 	"github.com/dingdayu/wxbot/simplexml"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ type SyncStruct struct {
 }
 
 func (user *WxLoginStatus) CheckSync() {
-	fmt.Println("拉取消息")
+	fmt.Println("检查消息 =>" + time.Now().Format("2006-01-02 15:04"))
 	url := user.baseUri + "/synccheck?"
 
 	data := make(map[string]string)
@@ -48,8 +49,7 @@ func (user *WxLoginStatus) CheckSync() {
 	data["synckey"] = user.SyncKeyStr
 	data["_"] = strconv.FormatInt(time.Now().Unix(), 10)
 
-	content := NewHttp("").Get(url, data)
-
+	content := NewHttp(user.uuid).Get(url, data)
 	ret := utils.PregMatch(`window.synccheck=\{retcode:"(\d+)",selector:"(\d+)"\}`, content)
 
 	retcode := ret[1]
@@ -63,9 +63,11 @@ func (user *WxLoginStatus) CheckSync() {
 
 	if retcode == "1101" {
 		fmt.Println("从其它设备上登了网页微信！")
+		os.Exit(0)
 	}
 	if retcode == "1100" {
 		fmt.Println("从微信客户端上登出！")
+		os.Exit(0)
 	}
 }
 
@@ -82,24 +84,27 @@ func (user *WxLoginStatus) handleCheckSync(selector string) {
 
 // 获取新消息
 func (user *WxLoginStatus) Sync() {
-	fmt.Println("有消息")
+	fmt.Println("新有消息 =>" + time.Now().Format("2006-01-02 15:04"))
 	url := fmt.Sprintf(user.baseUri+"/webwxsync?sid=%s&skey=%s&lang=zh_CN&pass_ticket=%s", user.BaseRequest.Sid, user.BaseRequest.Skey, user.passTicket)
 
 	type postDataStruct struct {
 		BaseRequest baseRequest
-		SyncKey     string
-		rr          string
+		SyncKey     SyncKey
+		Rr          string `json:"rr"`
 	}
+	fmt.Println(user.SyncKeyStr)
 	var postData *postDataStruct = &postDataStruct{
 		BaseRequest: user.BaseRequest,
-		SyncKey:     user.SyncKeyStr,
-		rr:          strconv.FormatInt(time.Now().Unix(), 10),
+		SyncKey:     user.SyncKey,
+		Rr:          strconv.FormatInt(time.Now().Unix(), 10),
 	}
 	bs, err := json.Marshal(postData)
 	if err != nil {
 		// json解析错误
 	}
+	fmt.Println(string(bs))
 	content := NewHttp(user.uuid).Post(url, string(bs))
+	fmt.Println(content)
 	var SyncMessage SyncStruct
 	err = json.Unmarshal([]byte(content), &SyncMessage)
 	if err != nil {
@@ -108,12 +113,13 @@ func (user *WxLoginStatus) Sync() {
 	}
 
 	// 更新SyncKey
-	user.SyncKey = SyncMessage.SyncKey
-	user.SyncKeyStr = generateSyncKey(SyncMessage.SyncKey)
+	if SyncMessage.BaseResponse.Ret == 0 {
+		user.SyncKey = SyncMessage.SyncKey
+		user.SyncKeyStr = generateSyncKey(SyncMessage.SyncKey)
 
-	handleSync(SyncMessage)
+		handleSync(SyncMessage)
+	}
 
-	user.CheckSync()
 }
 
 // 处理新消息
