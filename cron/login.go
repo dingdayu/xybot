@@ -8,6 +8,7 @@ import (
 	"github.com/dingdayu/wxbot/model"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
+	"gopkg.in/mgo.v2/bson"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -67,7 +68,7 @@ type WxLoginStatus struct {
 	LoginUser   types.User
 
 	// 联系人
-	ContactList map[string]types.Member
+	ContactList []types.Member
 
 	baseUri string
 	fileUri string
@@ -83,6 +84,13 @@ type baseRequest struct {
 	Sid      string
 	Skey     string
 	DeviceID string
+}
+
+// 获取详细信息接口返回的数据结构
+type GroupMembers struct {
+	BaseResponse BaseResponse
+	ContactList  []types.Member
+	Count        int
 }
 
 // 待扫描队列
@@ -344,7 +352,7 @@ func waitForLogin(uuid string) {
 				v.baseUri = baseUri
 				v.pushUri = pushUri
 				v.fileUri = fileUri
-				v.passTicket = loginXm.PassTicket
+				v.passTicket = strings.TrimSpace(loginXm.PassTicket)
 				v.BaseRequest = baseRequest
 			} else {
 				WxMap[uuid] = &WxLoginStatus{
@@ -352,7 +360,7 @@ func waitForLogin(uuid string) {
 					baseUri:     baseUri,
 					pushUri:     pushUri,
 					fileUri:     fileUri,
-					passTicket:  loginXm.PassTicket,
+					passTicket:  strings.TrimSpace(loginXm.PassTicket),
 					BaseRequest: baseRequest,
 				}
 			}
@@ -376,7 +384,6 @@ func waitForLogin(uuid string) {
 // 获取登陆的第一次xml消息
 func startLogin(uuid string, redirectUri string) loginXml {
 	content := NewHttp(uuid).Get(redirectUri, make(map[string]string))
-	fmt.Println(content)
 	var data loginXml
 	err := xml.Unmarshal([]byte(content), &data)
 	if err != nil {
@@ -432,7 +439,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 
 	// 初始化联系人
 	fmt.Println("初始化联系人")
-	// TODO::对初始化联系人进行标示
+	// TODO::保存最近联系人里的群，公众号，联系人
 	for _, item := range wxinitResponse.ContactList {
 		var contact = model.Contact{}
 		utils.Struct2Struct(item, &contact)
@@ -443,16 +450,62 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 		model.UpsertContact(&contact)
 	}
 	// TODO::复制联系人对象
-
 	// 获取全部的好友列表
 	user.getContactList(0)
 
-	chatRommMembers := model.GetChatRoomContact()
+	// 根据群UserName获取所有群的群成员列表
+	chatRommList := model.GetLimitContact(bson.M{"uuid": user.uuid, "contact_type": "ChatRooms"}, 50, 0)
 	batch := []types.BatchGetContact{}
-	for _, v := range chatRommMembers {
+	for _, v := range *chatRommList {
 		batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: ""})
 	}
-	user.getBatchGroupMembers(batch)
+	groupMembers := user.getBatchGroupMembers(batch)
+	for _, item := range groupMembers.ContactList {
+		var contact = model.Contact{}
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = user.BaseRequest.Uin
+		contact.UUID = user.uuid
+		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+		contact.ContactType = getContactType(item, user.LoginUser.UserName)
+		model.UpsertContact(&contact)
+		// 将群成员加入成员表
+		if len(item.MemberList) > 0 {
+			for _, items := range item.MemberList {
+				var member = model.Member{}
+				utils.Struct2Struct(items, &member)
+				member.HeadImgUrl = user.baseUri + member.HeadImgUrl
+				member.ChatRoomUserName = item.UserName
+				member.UUID = user.uuid
+				member.LoginUin = user.BaseRequest.Uin
+				model.UpsertMember(&member)
+			}
+		}
+	}
+
+	// TODO::获取所有群成员的资料信息
+	fmt.Println("第二次 更新群成员资料")
+	count := model.GetMemberCount(bson.M{"uuid": user.uuid})
+	page := count / 50
+	for i := 1; i < page; i++ {
+		time.Sleep(2e9)
+		fmt.Println("更新群成员资料：第" + strconv.Itoa(i) + "页,共" + strconv.Itoa(page) + "页")
+		members := model.GetLimitMember(50, i*50)
+		batch := []types.BatchGetContact{}
+		for _, v := range *members {
+			batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: v.ChatRoomUserName})
+		}
+		groupMembers := user.getBatchGroupMembers(batch)
+		for _, item := range groupMembers.ContactList {
+			var contact = model.Member{}
+			utils.Struct2Struct(item, &contact)
+			contact.LoginUin = user.BaseRequest.Uin
+			contact.UUID = user.uuid
+			contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+			model.UpsertMember(&contact)
+		}
+	}
+
+	user.CheckSync()
 
 }
 
@@ -540,8 +593,10 @@ func (user *WxLoginStatus) getContactList(seq int) {
 	}
 }
 
-// 获取群成员 不要超过50个
-func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
+// 获取详细资料 （可用于公众号，好友，群等）
+// 通常用于群资料和群成员资料
+// 每次最多50个
+func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) GroupMembers {
 
 	if len(batch) > 50 {
 		batch = batch[:49]
@@ -565,27 +620,33 @@ func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) {
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	//
-	type GroupMembers struct {
-		BaseResponse BaseResponse
-		ContactList  []types.Member
-		Count        int
-	}
 	var groupMembers GroupMembers
 	err = json.Unmarshal([]byte(content), &groupMembers)
 	if err != nil {
 		// json解析错误
 	}
-	// TODO::初始化联系人,根据username更新资料
-	for _, item := range groupMembers.ContactList {
-		var contact = model.Contact{}
-		utils.Struct2Struct(item, &contact)
-		contact.LoginUin = user.BaseRequest.Uin
-		contact.UUID = user.uuid
-		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
-		contact.ContactType = getContactType(item, user.LoginUser.UserName)
-		model.UpsertContact(&contact)
+	return groupMembers
+}
+
+func (user *WxLoginStatus) accountLogout() {
+	url := fmt.Sprintf(user.baseUri+"/webwxlogout?redirect=1&type=1&skey=%s", user.BaseRequest.Skey)
+
+	type postDataStruct struct {
+		Sid string
+		Uin int
 	}
 
+	var postData *postDataStruct = &postDataStruct{
+		Sid: user.BaseRequest.Sid,
+		Uin: user.BaseRequest.Uin,
+	}
+	bs, err := json.Marshal(postData)
+	if err != nil {
+		// json解析错误
+	}
+	content := NewHttp(user.uuid).Post(url, string(bs))
+	//
+	fmt.Println(content)
 }
 
 // 随机数字符串

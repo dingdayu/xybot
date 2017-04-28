@@ -6,10 +6,10 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const CONTACT_COLLECTION_NAME = "contact"
+const MEMBER_COLLECTION_NAME = "member"
 
 // 联系人
-type Contact struct {
+type Member struct {
 	Id               bson.ObjectId `bson:"_id,omitempty"`
 	Uin              int           `bson:"uin,omitempty"`
 	UserName         string        `bson:"username,omitempty"`
@@ -43,48 +43,35 @@ type Contact struct {
 	EncryChatRoomId  string        `bson:"encry_chat_romm_id,omitempty"`
 	IsOwner          int           `bson:"is_owner,omitempty"` // 是否所有者
 
-	LoginUin    int    `bson:"login_uin,omitempty"`
-	UUID        string `bson:"uuid,omitempty"`
-	ContactType string `bson:"contact_type,omitempty"`
-}
-
-type RoomMember struct {
-	AttrStatus      int    `bson:"attr_status,omitempty"`
-	DisplayName     string `bson:"display_name,omitempty"`
-	KeyWord         string `bson:"key_word,omitempty"`
-	MemberStatus    int    `bson:"member_status,omitempty"`
-	NickName        string `bson:"nickname,omitempty"`
-	PYInitial       string `bson:"py_initial,omitempty"`  // 昵称简拼
-	PYQuanPin       string `bson:"py_quan_pin,omitempty"` // 昵称全拼
-	RemarkPYInitial string `bson:"remark_py_initial,omitempty"`
-	RemarkPYQuanPin string `bson:"remark_py_quan_pin,omitempty"`
-	Uin             int    `bson:"uin,omitempty"`
-	UserName        string `bson:"username,omitempty"`
+	LoginUin         int    `bson:"login_uin,omitempty"`
+	UUID             string `bson:"uuid,omitempty"`
+	ChatRoomUserName string `bson:"chat_room_username,omitempty"`
 }
 
 /**
  * User
  */
-func AddContact(p Contact) string {
+func AddMember(p Member) string {
 	p.Id = bson.NewObjectId()
 	query := func(c *mgo.Collection) error {
 		return c.Insert(p)
 	}
-	err := witchCollection(CONTACT_COLLECTION_NAME, query)
+	err := witchCollection(MEMBER_COLLECTION_NAME, query)
 	if err != nil {
 		return "false"
 	}
 	return p.Id.Hex()
 }
 
-func UpsertContact(p *Contact) {
+// 设置群成员
+func UpsertMember(p *Member) {
 	query := func(c *mgo.Collection) error {
-		changeInfo, err := c.Upsert(bson.M{"username": p.UserName}, bson.M{"$set": p})
-		fmt.Printf("%+v\n", changeInfo)
+		_, err := c.Upsert(bson.M{"username": p.UserName}, bson.M{"$set": p})
+		//fmt.Printf("%+v\n", changeInfo)
 		return err
 
 	}
-	err := witchCollection(CONTACT_COLLECTION_NAME, query)
+	err := witchCollection(MEMBER_COLLECTION_NAME, query)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -93,23 +80,32 @@ func UpsertContact(p *Contact) {
 /**
  * 获取一条记录通过objectid
  */
-func GetContactById(id string) *Contact {
-	objid := bson.ObjectIdHex(id)
-	person := new(Contact)
+func GetLimitMember(limit int, skip int) *[]Member {
+	var members []Member
 	query := func(c *mgo.Collection) error {
-		return c.FindId(objid).One(&person)
+		return c.Find(nil).Limit(limit).Skip(skip).All(&members)
 	}
-	witchCollection(CONTACT_COLLECTION_NAME, query)
-	return person
+	witchCollection(MEMBER_COLLECTION_NAME, query)
+	return &members
+}
+
+func GetMemberCount(where bson.M) (count int) {
+	query := func(c *mgo.Collection) error {
+		var err error
+		count, err = c.Find(where).Count()
+		return err
+	}
+	witchCollection(MEMBER_COLLECTION_NAME, query)
+	return
 }
 
 //获取所有的person数据
-func PageContact() []Contact {
-	var persons []Contact
+func PageMember() []Member {
+	var persons []Member
 	query := func(c *mgo.Collection) error {
 		return c.Find(nil).All(&persons)
 	}
-	err := witchCollection(CONTACT_COLLECTION_NAME, query)
+	err := witchCollection(MEMBER_COLLECTION_NAME, query)
 	if err != nil {
 		return persons
 	}
@@ -117,43 +113,24 @@ func PageContact() []Contact {
 }
 
 // 获取聊天室的记录
-func GetChatRoomContact() []Contact {
-	var contact []Contact
+func GetMember() []Member {
+	var contact []Member
 	query := func(c *mgo.Collection) error {
 		return c.Find(bson.M{"contact_type": "ChatRooms"}).All(&contact)
 	}
-	err := witchCollection(CONTACT_COLLECTION_NAME, query)
+	err := witchCollection(MEMBER_COLLECTION_NAME, query)
 	if err != nil {
 		return contact
 	}
 	return contact
 }
 
-func GetLimitContact(where bson.M, limit int, skip int) *[]Member {
-	var members []Member
-	query := func(c *mgo.Collection) error {
-		return c.Find(where).Limit(limit).Skip(skip).All(&members)
-	}
-	witchCollection(CONTACT_COLLECTION_NAME, query)
-	return &members
-}
-
-func GetContactCount(where bson.M) (count int) {
-	query := func(c *mgo.Collection) error {
-		var err error
-		count, err = c.Find(where).Count()
-		return err
-	}
-	witchCollection(CONTACT_COLLECTION_NAME, query)
-	return
-}
-
 //更新person数据
-func UpdateContact(query bson.M, change bson.M) bool {
+func UpdateMember(query bson.M, change bson.M) bool {
 	exop := func(c *mgo.Collection) error {
 		return c.Update(query, change)
 	}
-	err := witchCollection(CONTACT_COLLECTION_NAME, exop)
+	err := witchCollection(MEMBER_COLLECTION_NAME, exop)
 	if err != nil {
 		return true
 	}

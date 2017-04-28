@@ -6,10 +6,10 @@ type Member struct {
 	UserName         string
 	NickName         string // 昵称
 	HeadImgUrl       string
-	ContactFlag      int          // 联系人标记，好友1；群2;公众号号3，KeyWord："gh_"为订阅号
-	MemberCount      int          // 聊天室成员数量
-	MemberList       []RoomMember // 聊天室成员
-	RemarkName       string       // 备注
+	ContactFlag      int      // 联系人标记，好友1；群2;公众号号3，KeyWord："gh_"为订阅号
+	MemberCount      int      // 聊天室成员数量
+	MemberList       []Member // 聊天室成员
+	RemarkName       string   // 备注
 	HideInputBarFlag int
 	Sex              int
 	Signature        string
@@ -41,7 +41,7 @@ type ModContact struct {
 	AttrStatus        int
 	ChatRoomOwner     string
 	City              string
-	ContactFlag       int
+	ContactFlag       int // 好友
 	ContactType       int
 	HeadImgUpdateFlag int // 头像更新标记
 	HeadImgUrl        string

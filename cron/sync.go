@@ -35,17 +35,17 @@ type SyncStruct struct {
 	SyncCheckKey           SyncKey
 }
 
-func CheckSync() string {
-
-	url := host + "/synccheck?"
+func (user *WxLoginStatus) CheckSync() {
+	fmt.Println("拉取消息")
+	url := user.baseUri + "/synccheck?"
 
 	data := make(map[string]string)
 	data["r"] = strconv.FormatInt(time.Now().Unix(), 10)
-	data["sid"] = ""
-	data["uin"] = ""
-	data["skey"] = ""
-	data["deviceid"] = ""
-	data["synckey"] = ""
+	data["sid"] = user.BaseRequest.Sid
+	data["uin"] = strconv.Itoa(user.BaseRequest.Uin)
+	data["skey"] = user.BaseRequest.Skey
+	data["deviceid"] = user.BaseRequest.DeviceID
+	data["synckey"] = user.SyncKeyStr
 	data["_"] = strconv.FormatInt(time.Now().Unix(), 10)
 
 	content := NewHttp("").Get(url, data)
@@ -58,24 +58,31 @@ func CheckSync() string {
 		fmt.Println("微信客户端正常退出")
 	}
 	if retcode == "0" {
-		handleCheckSync(selector)
-	} else {
-		fmt.Println("微信异常退出！")
+		user.handleCheckSync(selector)
 	}
 
-	return content
+	if retcode == "1101" {
+		fmt.Println("从其它设备上登了网页微信！")
+	}
+	if retcode == "1100" {
+		fmt.Println("从微信客户端上登出！")
+	}
 }
 
-func handleCheckSync(selector string) {
+func (user *WxLoginStatus) handleCheckSync(selector string) {
 	if selector == "0" {
 		return
 	}
 	// == 4 联系人修改资料
 	// == 2 有新消息
+	time.Sleep(2e9)
+	user.Sync()
+
 }
 
 // 获取新消息
-func (user WxLoginStatus) Sync() {
+func (user *WxLoginStatus) Sync() {
+	fmt.Println("有消息")
 	url := fmt.Sprintf(user.baseUri+"/webwxsync?sid=%s&skey=%s&lang=zh_CN&pass_ticket=%s", user.BaseRequest.Sid, user.BaseRequest.Skey, user.passTicket)
 
 	type postDataStruct struct {
@@ -86,7 +93,7 @@ func (user WxLoginStatus) Sync() {
 	var postData *postDataStruct = &postDataStruct{
 		BaseRequest: user.BaseRequest,
 		SyncKey:     user.SyncKeyStr,
-		rr:          string(time.Now().Unix()),
+		rr:          strconv.FormatInt(time.Now().Unix(), 10),
 	}
 	bs, err := json.Marshal(postData)
 	if err != nil {
@@ -99,7 +106,14 @@ func (user WxLoginStatus) Sync() {
 		// json解析错误
 		fmt.Println(err.Error())
 	}
+
+	// 更新SyncKey
+	user.SyncKey = SyncMessage.SyncKey
+	user.SyncKeyStr = generateSyncKey(SyncMessage.SyncKey)
+
 	handleSync(SyncMessage)
+
+	user.CheckSync()
 }
 
 // 处理新消息
