@@ -92,7 +92,6 @@ func (user *WxLoginStatus) Sync() {
 		SyncKey     SyncKey
 		Rr          string `json:"rr"`
 	}
-	fmt.Println(user.SyncKeyStr)
 	var postData *postDataStruct = &postDataStruct{
 		BaseRequest: user.BaseRequest,
 		SyncKey:     user.SyncKey,
@@ -102,9 +101,7 @@ func (user *WxLoginStatus) Sync() {
 	if err != nil {
 		// json解析错误
 	}
-	fmt.Println(string(bs))
 	content := NewHttp(user.uuid).Post(url, string(bs))
-	fmt.Println(content)
 	var SyncMessage SyncStruct
 	err = json.Unmarshal([]byte(content), &SyncMessage)
 	if err != nil {
@@ -158,6 +155,7 @@ func handleMessage(Msg types.Message) {
 
 		// 通过好友验证消息
 		// 文本消息
+		fmt.Println(Msg.Content)
 
 	case 3:
 		// 图片消息
