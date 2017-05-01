@@ -46,14 +46,14 @@ type Profile struct {
 	}
 }
 
-var SPECIAL_USERS = []string{"newsapp", "fmessage", "filehelper", "weibo", "qqmail",
+var SPECIAL_USERS = []string{"newsapp", "filehelper", "weibo", "qqmail",
 	"fmessage", "tmessage", "qmessage", "qqsync", "floatbottle",
 	"lbsapp", "shakeapp", "medianote", "qqfriend", "readerapp",
 	"blogapp", "facebookapp", "masssendapp", "meishiapp",
 	"feedsapp", "voip", "blogappweixin", "weixin", "brandsessionholder",
 	"weixinreminder", "wxid_novlwrv3lqwv11",
-	"officialaccounts", "notification_messages", "wxid_novlwrv3lqwv11",
-	"gh_22b87fa7cb3c", "wxitil", "userexperience_alarm", "notification_messages"}
+	"officialaccounts",
+	"gh_22b87fa7cb3c", "wxitil", "userexperience_alarm", "notification_messages", "notifymessage"}
 
 var SPECIAL_USERS_NAME = []string{
 	"微信运动",

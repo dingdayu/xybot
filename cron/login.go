@@ -493,6 +493,38 @@ func (user *WxLoginStatus) UpdateChatRoomSMembers() {
 	}
 }
 
+func (user *WxLoginStatus) SendTextMsg(username string, msg string) {
+	url := fmt.Sprintf(user.baseUri+"/webwxsendmsg?pass_ticket=%s", user.passTicket)
+	rand := rands(17)
+	postData := &struct {
+		BaseRequest baseRequest
+		Msg         types.SendMsg
+		Scene       int
+	}{
+		BaseRequest: user.BaseRequest,
+		Msg: types.SendMsg{
+			Type:         1,
+			Content:      msg,
+			FromUserName: user.LoginUser.UserName,
+			ToUserName:   username,
+			LocalID:      rand,
+			ClientMsgId:  rand,
+		},
+		Scene: 1,
+	}
+
+	bs, err := json.Marshal(postData)
+	if err != nil {
+		// json解析错误
+	}
+	content := NewHttp(user.uuid).Post(url, string(bs))
+	var groupMembers GroupMembers
+	err = json.Unmarshal([]byte(content), &groupMembers)
+	if err != nil {
+		// json解析错误
+	}
+}
+
 // 登出
 func (user *WxLoginStatus) Logout() {
 	url := fmt.Sprintf(user.baseUri+"/webwxlogout?redirect=1&type=1&skey=%s", user.BaseRequest.Skey)

@@ -58,3 +58,12 @@ type BatchGetContact struct {
 	UserName        string
 	EncryChatRoomId string
 }
+
+type SendMsg struct {
+	Type         int
+	Content      string
+	FromUserName string
+	ToUserName   string
+	LocalID      string
+	ClientMsgId  string
+}
