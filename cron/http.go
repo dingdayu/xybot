@@ -1,19 +1,28 @@
 package cron
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/dingdayu/wxbot/utils"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var cookieJarList map[string]*cookiejar.Jar
 var baseUrl = "https://wx2.qq.com/cgi-bin/mmwebwx-bin"
+var mediaCount = 0
 
 type Http struct {
 	Client *http.Client
@@ -126,14 +135,154 @@ func (h *Http) PostForm(url string, data url.Values) string {
 	return string(body)
 }
 
-func (h *Http) GetTicket(url string) (string, error) {
-	cookies := h.Client.Jar.Cookies(url)
+func PostFile(url string, filePath string, params map[string]string) string {
+
+	//打开文件句柄操作
+	file, err := os.Open(filePath)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	//创建一个模拟的form中的一个选项,这个form项现在是空的
+	bodyBuf := &bytes.Buffer{}
+	bodyWriter := multipart.NewWriter(bodyBuf)
+
+	//关键的一步操作, 设置文件的上传参数叫uploadfile, 文件名是filename,
+	//相当于现在还没选择文件, form项里选择文件的选项
+	fileWriter, err := bodyWriter.CreateFormFile("filename", path.Base(filePath))
+	if err != nil {
+		fmt.Println("error writing to buffer")
+		panic(err)
+	}
+
+	//iocopy 这里相当于选择了文件,将文件放到form中
+	_, err = io.Copy(fileWriter, file)
+	if err != nil {
+		panic(err)
+	}
+
+	//获取上传文件的类型,multipart/form-data; boundary=...
+	contentType := bodyWriter.FormDataContentType()
+
+	//这个很关键,必须这样写关闭,不能使用defer关闭,不然会导致错误
+	bodyWriter.Close()
+
+	//这里就是上传的其他参数设置,可以使用 bodyWriter.WriteField(key, val) 方法
+	//也可以自己在重新使用  multipart.NewWriter 重新建立一项,这个再server 会有例子
+	if len(params) > 0 {
+		//这种设置值得仿佛 和下面再从新创建一个的一样
+		for key, val := range params {
+			_ = bodyWriter.WriteField(key, val)
+		}
+	}
+
+	//发送post请求到服务端
+	resp, err := http.Post(url, contentType, bodyBuf)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	resp_body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	return string(resp_body)
+}
+
+// 获取cookie里面的ticker
+func (h *Http) GetTicket(uri string) (string, error) {
+	uriss, _ := url.Parse(uri)
+	cookies := h.Client.Jar.Cookies(uriss)
 	for _, v := range cookies {
 		if v.Name == "webwx_data_ticket" {
 			return v.Value, nil
 		}
 	}
-	return nil, errors.New("not find 'webwx_data_ticket'")
+	return "", errors.New("not find 'webwx_data_ticket'")
+}
+
+// 上传资源文件
+func (h *Http) UploadMedia(user WxLoginStatus, username string, file string) string {
+
+	uri := user.fileUri + "/webwxuploadmedia?f=json"
+	// 检查文件是否存在
+	if !utils.IsDirExist(file) {
+		panic(errors.New("文件未找到"))
+	}
+	mediaCount++
+
+	fileInfo, err := os.Stat(file)
+	if err != nil {
+		panic(err)
+	}
+
+	file_mime := mime.TypeByExtension(path.Ext(file))
+	file_type := getFileType(file)
+	file_size := fileInfo.Size()
+
+	file_mod_time := fileInfo.ModTime()
+	file_md5, _ := utils.Md5SumFile(file)
+	ticket, _ := h.GetTicket(user.baseUri)
+
+	uploadmediarequest := struct {
+		BaseRequest   baseRequest
+		ClientMediaId int
+		TotalLen      int
+		StartPos      int
+		DataLen       int
+		MediaType     int
+		UploadType    int
+		FromUserName  string
+		ToUserName    string
+		FileMd5       string
+	}{
+		BaseRequest:   user.BaseRequest,
+		ClientMediaId: int(time.Now().Unix()),
+		TotalLen:      int(file_size),
+		DataLen:       int(file_size),
+		StartPos:      0,
+		MediaType:     4,
+		UploadType:    2,
+		FromUserName:  user.LoginUser.UserName,
+		ToUserName:    username,
+		FileMd5:       fmt.Sprintf("%x", file_md5),
+	}
+
+	bs, err := json.Marshal(uploadmediarequest)
+	if err != nil {
+		panic(err)
+	}
+
+	v := make(map[string]string)
+	v["id"] = "WU_FILE_" + strconv.Itoa(mediaCount)
+	v["name"] = path.Base(file)
+	v["type"] = file_mime
+	v["size"] = strconv.FormatInt(file_size, 10)
+	v["mediatype"] = file_type
+	v["uploadmediarequest"] = string(bs)
+	v["lastModifieDate"] = file_mod_time.Format("Mon Jan 02 2006 15:04:15 GMT+0800 (CST)")
+	v["webwx_data_ticket"] = ticket
+	v["pass_ticket"] = user.passTicket
+	v["filename"] = path.Base(file)
+
+	return PostFile(uri, file, v)
+}
+
+// 获取上传文件类型
+func getFileType(file string) string {
+	switch path.Ext(file) {
+	case ".jpg":
+		return "pic"
+	case ".png":
+		return "pic"
+	case ".gif":
+		return "pic"
+	case ".mp4":
+		return "video"
+	default:
+		return "doc"
+	}
 }
 
 func (h *Http) SaveImage(url string, file string) {
@@ -145,8 +294,8 @@ func (h *Http) SaveImage(url string, file string) {
 	}
 	//按分辨率目录保存图片
 	Dirname := "tmp/"
-	if !isDirExist(Dirname) {
-		os.Mkdir(Dirname, 0755)
+	if !utils.IsDirExist(Dirname) {
+		os.MkdirAll(Dirname, 0755)
 		fmt.Printf("dir %s created\n", Dirname)
 	}
 	//根据URL文件名创建文件
@@ -157,13 +306,4 @@ func (h *Http) SaveImage(url string, file string) {
 	}
 	// 写入文件
 	io.Copy(dst, res.Body)
-}
-
-func isDirExist(path string) bool {
-	p, err := os.Stat(path)
-	if err != nil {
-		return os.IsExist(err)
-	} else {
-		return p.IsDir()
-	}
 }
