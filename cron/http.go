@@ -2,6 +2,7 @@ package cron
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -125,7 +126,17 @@ func (h *Http) PostForm(url string, data url.Values) string {
 	return string(body)
 }
 
-func (h Http) SaveImage(url string, uuid string) {
+func (h *Http) GetTicket(url string) (string, error) {
+	cookies := h.Client.Jar.Cookies(url)
+	for _, v := range cookies {
+		if v.Name == "webwx_data_ticket" {
+			return v.Value, nil
+		}
+	}
+	return nil, errors.New("not find 'webwx_data_ticket'")
+}
+
+func (h *Http) SaveImage(url string, file string) {
 	res, err := h.Client.Get(url)
 	defer res.Body.Close()
 	if err != nil {
@@ -139,7 +150,7 @@ func (h Http) SaveImage(url string, uuid string) {
 		fmt.Printf("dir %s created\n", Dirname)
 	}
 	//根据URL文件名创建文件
-	dst, err := os.Create(Dirname + uuid + ".png")
+	dst, err := os.Create(file)
 	if err != nil {
 		fmt.Printf("%d HTTP ERROR:%s\n"+url, err)
 		return
