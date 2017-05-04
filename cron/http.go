@@ -3,9 +3,9 @@ package cron
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/dingdayu/wxbot/utils"
-	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -67,6 +67,7 @@ func NewHttp(uuid string) *Http {
 	return &Http{Client: client, Jar: cookieJar}
 }
 
+// get发送字符串的map调用
 func (h *Http) Get(url string, params map[string]string) string {
 
 	if !strings.Contains(url, "?") {
@@ -92,6 +93,7 @@ func (h *Http) Get(url string, params map[string]string) string {
 	return string(body)
 }
 
+// post发送字符串的map调用
 func (h *Http) PostMap(url string, params map[string]string) string {
 	var post string
 	for k, v := range params {
@@ -102,6 +104,7 @@ func (h *Http) PostMap(url string, params map[string]string) string {
 	return h.Post(url, post)
 }
 
+// post发送字符串
 func (h *Http) Post(url string, post string) string {
 	resp, err := h.Client.Post(url,
 		"application/json, text/plain, */*",
@@ -119,6 +122,7 @@ func (h *Http) Post(url string, post string) string {
 	return string(body)
 }
 
+// post提交表单
 func (h *Http) PostForm(url string, data url.Values) string {
 	resp, err := h.Client.PostForm(url, data)
 
@@ -135,6 +139,7 @@ func (h *Http) PostForm(url string, data url.Values) string {
 	return string(body)
 }
 
+// post发送文件
 func PostFile(url string, filePath string, params map[string]string) string {
 
 	//打开文件句柄操作
@@ -203,7 +208,7 @@ func (h *Http) GetTicket(uri string) (string, error) {
 }
 
 // 上传资源文件
-func (h *Http) UploadMedia(user WxLoginStatus, username string, file string) string {
+func (h *Http) UploadMedia(user *WxLoginStatus, username string, file string) string {
 
 	uri := user.fileUri + "/webwxuploadmedia?f=json"
 	// 检查文件是否存在
@@ -266,7 +271,22 @@ func (h *Http) UploadMedia(user WxLoginStatus, username string, file string) str
 	v["pass_ticket"] = user.passTicket
 	v["filename"] = path.Base(file)
 
-	return PostFile(uri, file, v)
+	content := PostFile(uri, file, v)
+
+	ret := struct {
+		BaseResponse      BaseResponse
+		CDNThumbImgHeight int
+		CDNThumbImgWidth  int
+		MediaId           string
+		StartPos          int
+	}{}
+
+	err = json.Unmarshal([]byte(content), &ret)
+	if err != nil {
+		// json解析错误
+	}
+
+	return ret.MediaId
 }
 
 // 获取上传文件类型
@@ -285,6 +305,45 @@ func getFileType(file string) string {
 	}
 }
 
+// 下载图片，表情到本地
+func (h *Http) DownMsgImg(user *WxLoginStatus, msgid string, file string) {
+	uri := fmt.Sprintf(user.baseUri+"/webwxgetmsgimg?MsgID=%s&skey=%s", msgid, user.BaseRequest.Skey)
+	res, err := h.Client.Get(uri)
+	defer res.Body.Close()
+	if err != nil {
+		fmt.Printf("%d HTTP ERROR:%s", uri, err)
+		return
+	}
+	//TODO::保存
+	if !utils.IsDirExist(file) {
+		os.MkdirAll(file, 0755)
+		fmt.Printf("dir %s created\n", file)
+	}
+	//根据URL文件名创建文件
+	resp_body, err := ioutil.ReadAll(res.Body)
+	ioutil.WriteFile(file, resp_body, os.ModePerm)
+}
+
+// 下载文档保存到本地
+func (h *Http) DownMsgFile(user *WxLoginStatus, msgid string, formUserName string, fileName string, file string) {
+
+	baseUri := user.baseUri + "/webwxgetmedia?"
+	ticket, _ := h.GetTicket(user.baseUri)
+	uri := fmt.Sprintf("sender=%s&mediaid=%s&filename=%s&fromuser=%s&pass_ticket=%s&webwx_data_ticket=%s",
+		formUserName, msgid, fileName, user.LoginUser.UserName, user.passTicket, ticket)
+	uri = baseUri + uri
+
+	res, err := h.Client.Get(uri)
+	defer res.Body.Close()
+	if err != nil {
+		fmt.Printf("%d HTTP ERROR:%s", uri, err)
+		return
+	}
+	//根据URL文件名创建文件
+	resp_body, err := ioutil.ReadAll(res.Body)
+	ioutil.WriteFile(file, resp_body, os.ModePerm)
+}
+
 func (h *Http) SaveImage(url string, file string) {
 	res, err := h.Client.Get(url)
 	defer res.Body.Close()
@@ -298,12 +357,7 @@ func (h *Http) SaveImage(url string, file string) {
 		os.MkdirAll(Dirname, 0755)
 		fmt.Printf("dir %s created\n", Dirname)
 	}
+	resp_body, err := ioutil.ReadAll(res.Body)
 	//根据URL文件名创建文件
-	dst, err := os.Create(file)
-	if err != nil {
-		fmt.Printf("%d HTTP ERROR:%s\n"+url, err)
-		return
-	}
-	// 写入文件
-	io.Copy(dst, res.Body)
+	ioutil.WriteFile(file, resp_body, os.ModePerm)
 }

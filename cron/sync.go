@@ -2,8 +2,8 @@ package cron
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
-	"github.com/dingdayu/wxbot/simplexml"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"html"
@@ -129,8 +129,10 @@ func handleSync(SyncMessage SyncStruct) {
 		for _, modContac := range SyncMessage.ModContactList {
 			if strings.Contains(modContac.UserName, "@@") {
 				// 更新群成员信息
+				// 新建群
+
 			} else {
-				// 联系人更新资料
+				// 联系人更新资料 TODO::暂时无效
 			}
 		}
 
@@ -146,15 +148,18 @@ func handleSync(SyncMessage SyncStruct) {
 // AppMsgType app分享
 // FromUserName 两个@@ 就是群消息
 func handleMessage(Msg types.Message) {
-	Msg.Content = strings.Replace(Msg.Content, "<br>", "\n", 99)
+	Msg.Content = FormatContent(Msg.Content)
 	switch Msg.MsgType {
 	case 1:
 
 		if strings.Contains(Msg.Content, "webwxgetpubliclinkimg") && Msg.Url != "" {
 			// 地理位置消息
 		}
+		//TODO::如果FromUserName 存在于联系人，且
+		if strings.Contains(Msg.Content, "过了你的朋友验证请求") && Msg.FromUserName == "" {
+			// 通过好友验证消息
+		}
 
-		// 通过好友验证消息
 		// 文本消息
 		fmt.Println(FormatContent(Msg.Content))
 
@@ -171,6 +176,7 @@ func handleMessage(Msg types.Message) {
 		// 视频消息
 	case 47:
 		// 动画表情
+		// TODO:: 1、下载表情 msgid.gif
 	case 49:
 
 		if Msg.Status == 3 && Msg.FileName == "微信转账" {
@@ -191,9 +197,14 @@ func handleMessage(Msg types.Message) {
 	case 10002:
 		// 撤回消息
 	case 10000:
-		// 红包消息
-		// 好友申请，打招呼
+		if strings.Contains(Msg.Content, "利是") || strings.Contains(Msg.Content, "红包") {
+			// 红包消息
+		}
+		if strings.Contains(Msg.Content, "添加") || strings.Contains(Msg.Content, "打招呼") {
+			// 好友申请，打招呼
+		}
 		// 群成员改变，添加或移除
+		GroupChange(Msg)
 
 	}
 }
@@ -216,26 +227,55 @@ func handleMessage(Msg types.Message) {
 
 func parseXml(xml string) {
 	if strings.HasSuffix(xml, "@") {
-		content := utils.PregMatch(`(@\S+:\\n)`, xml)
-		// create a document from a reader
-		doc, err := simplexml.NewDocumentFromReader(strings.NewReader(content[1]))
-		if err != nil {
-			panic(err)
-		}
 
-		// get the fizz tag and value
-		fizz := doc.Root().Search().ByName("foo").ByName("fizz").One()
-		if fizz == nil {
-			panic("fizz is missing")
-		}
+		var t xml.Token
+		var err error
+		input := `@e58e8479d0f77b6375fb544dc2af506d:<br/>&lt;?xml version=\"1.0\"?&gt;<br/>&lt;msg bigheadimgurl=\"http://wx.qlogo.cn/mmhead/ver_1/PpML0xpicT8Jibj2nhXicWvx7rVHTsFjnyJWBWP1QAia6jrZFIMXakCG6ibGfYUhhIj5jdjX6iaRCBhGprgQgKSEaEUHTlic53lR3U2gaVjuAjvEBE/0\" smallheadimgurl=\"http://wx.qlogo.cn/mmhead/ver_1/PpML0xpicT8Jibj2nhXicWvx7rVHTsFjnyJWBWP1QAia6jrZFIMXakCG6ibGfYUhhIj5jdjX6iaRCBhGprgQgKSEaEUHTlic53lR3U2gaVjuAjvEBE/132\" username=\"v1_3a01496755a35b1f46a369f80cb19adbb7939ab1d3e38893924d9376494505a235dd2946a4218f01a8e725fbde7c1c93@stranger\" nickname=\"<span class=\"emoji emoji1f483\"></span>丢豆儿\"  shortpy=\"?DDE\" alias=\"\" imagestatus=\"3\" scene=\"17\" province=\"新加坡\" city=\"\" sign=\"\" sex=\"2\" certflag=\"0\" certinfo=\"\" brandIconUrl=\"\" brandHomeUrl=\"\" brandSubscriptConfigUrl=\"\" brandFlags=\"0\" regionCode=\"SG\" antispamticket=\"v2_a57d8b9245894cccd2b7044645de6ccfb0325ae14094ed5b9995b57b239b0e11dc4a59fb1665c2dfa886afacd68d3322@stranger\" /&gt;<br/>`
 
-		fv, err := fizz.Value()
-		if err != nil {
-			panic(err)
-		}
+		input, _ = FormatXml(input)
 
-		fmt.Println("fizz: ", fv)
+		inputReader := strings.NewReader(input)
+		// 从文件读取，如可以如下：
+		// content, err := ioutil.ReadFile("studygolang.xml")
+		// decoder := xml.NewDecoder(bytes.NewBuffer(content))
+		decoder := xml.NewDecoder(inputReader)
+		for t, err = decoder.Token(); err == nil; t, err = decoder.Token() {
+			switch token := t.(type) {
+			// 处理元素开始（标签）
+			case xml.StartElement:
+				name := token.Name.Local
+				fmt.Printf("Token name: %s\n", name)
+				for _, attr := range token.Attr {
+					attrName := attr.Name.Local
+					attrValue := attr.Value
+					fmt.Printf("An attribute is: %s %s\n", attrName, attrValue)
+				}
+			// 处理元素结束（标签）
+			case xml.EndElement:
+				fmt.Printf("Token of '%s' end\n", token.Name.Local)
+			// 处理字符数据（这里就是元素的文本）
+			case xml.CharData:
+				content := string([]byte(token))
+				fmt.Printf("This is the content: %v\n", content)
+			default:
+				// ...
+			}
+		}
 	}
+}
+
+// 格式化xml
+func FormatXml(input string) (string, string) {
+	input = strings.Replace(input, "\\", "", -1)
+	input = FormatContent(input)
+
+	content := utils.PregMatch(`(@\S+:)\n`, input)
+	username := strings.Trim(content[0], ":")
+
+	input = strings.Replace(input, content[0], "", 1)
+	input = strings.Replace(input, "\n", "", -1)
+
+	return input, username
 }
 
 // 替换消息体

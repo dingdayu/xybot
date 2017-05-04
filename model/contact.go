@@ -46,6 +46,8 @@ type Contact struct {
 	LoginUin    int    `bson:"login_uin,omitempty"`
 	UUID        string `bson:"uuid,omitempty"`
 	ContactType string `bson:"contact_type,omitempty"`
+
+	ChatRoomOwner string `bson:"contact_type,omitempty"` // 更新群资料时写入
 }
 
 type RoomMember struct {
