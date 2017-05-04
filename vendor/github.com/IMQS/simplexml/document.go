@@ -1,3 +1,5 @@
+// Package simplexml is a simple API to read, write, edit and search XML documents at run time in pure Go.
+// A simplistic design relying on the fmt.Stringer interface to build a document.
 package simplexml
 
 import (
@@ -166,10 +168,12 @@ func (d Document) Marshal() ([]byte, error) {
 
 	/*
 		TODO: Removed from scope of v0.1
+
 		// return first error of root
 		if errs := d.Root().Errors(); len(errs) != 0 {
 			return nil, errs[0]
 		}
+
 	*/
 
 	// build the document

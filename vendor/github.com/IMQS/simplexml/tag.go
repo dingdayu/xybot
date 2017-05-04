@@ -251,12 +251,15 @@ func (t *Tag) AddNamespace(name string, value string) *Tag {
 
 /*
 TODO: Removed from scope of v0.1
+
 // XPath returns the Tag's XPath from it's root
 func (t Tag) XPath() XPath {
 	x := XPath{}
+
 	for _, v := range t.parents {
 		x = append(x, v.Name)
 	}
+
 	return append(x, t.Name)
 }
 */
@@ -340,19 +343,24 @@ func (t *Tag) Marshal() ([]byte, error) {
 
 /*
 TODO: Removed from scope of v0.1
+
 // UnmarshalStrict is a custom XML unmarshaller that behaves much like xml.Unmarshal with a few enahncements, including the return of a UnmarshalResult.
 func (t Tag) UnmarshalStrict(v interface{}) (UnmarshalResult, error) {
 	return UnmarshalResult{}, nil
 }
+
 // UnmarshalResult is returned during UnmarshalStrict(), containing a slice of XPath that were and were not successfully Unmarshaled.
 type UnmarshalResult struct {
 	Used   []XPath
 	Unused []XPath
 }
+
 // Errors recursively checks the Tag for anything that makes the XML document invalid and returns a slice of error.
 func (t Tag) Errors() []error {
 	var errs []error
+
 	// ensure a non Comment and Non Tag type do not coexist with a Tag type within the same Tag
+
 			// scan all non Tag and non CDATA elements to determine if they should be CDATA
 			for _, v := range t.elements {
 				switch k := v.(type) {
@@ -368,6 +376,7 @@ func (t Tag) Errors() []error {
 					}
 				}
 			}
+
 		// ensure all CDATA elements do not contain ']]>'
 		for _, v := range t.elements {
 			switch k := v.(type) {
@@ -377,12 +386,14 @@ func (t Tag) Errors() []error {
 				}
 			}
 		}
+
 		// ensure current prefix has a namespace
 		if t.Prefix != "" {
 			if _, err := t.GetNamespace(t.Prefix); err != nil {
 				errs = append(errs, errors.New(t.XPath().String()+": prefix '"+t.Prefix+"' does not have a defined namespace"))
 			}
 		}
+
 		// ensure all comments do not contain '--'
 		for _, v := range t.elements {
 			switch k := v.(type) {
@@ -392,10 +403,12 @@ func (t Tag) Errors() []error {
 				}
 			}
 		}
+
 		// run on all child tags
 		for _, v := range t.Tags() {
 			errs = append(errs, v.Errors()...)
 		}
+
 	return errs
 }
 */
