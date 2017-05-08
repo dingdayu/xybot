@@ -208,6 +208,8 @@ func (h *Http) GetTicket(uri string) (string, error) {
 }
 
 // 上传资源文件
+// 大于 1048576 使用秒传
+// API_webwxpreview + "?fun=preview&mediaid=" + t.MediaId 预览
 func (h *Http) UploadMedia(user *WxLoginStatus, username string, file string) string {
 
 	uri := user.fileUri + "/webwxuploadmedia?f=json"
@@ -306,10 +308,58 @@ func getFileType(file string) string {
 }
 
 // 下载图片，表情到本地
+// 表情同样走这个接口
 func (h *Http) DownMsgImg(user *WxLoginStatus, msgid string, file string) {
 	uri := fmt.Sprintf(user.baseUri+"/webwxgetmsgimg?MsgID=%s&skey=%s", msgid, user.BaseRequest.Skey)
 	res, err := h.Client.Get(uri)
 	defer res.Body.Close()
+	if err != nil {
+		fmt.Printf("%d HTTP ERROR:%s", uri, err)
+		return
+	}
+	//TODO::保存
+	if !utils.IsDirExist(file) {
+		os.MkdirAll(file, 0755)
+		fmt.Printf("dir %s created\n", file)
+	}
+	//根据URL文件名创建文件
+	resp_body, err := ioutil.ReadAll(res.Body)
+	ioutil.WriteFile(file, resp_body, os.ModePerm)
+}
+
+// 下载语音消息
+func (h *Http) DownVoiceImg(user *WxLoginStatus, msgid string, file string) {
+	uri := fmt.Sprintf(user.baseUri+"/webwxgetvoice?msgid=%s&skey=%s", msgid, user.BaseRequest.Skey)
+	res, err := h.Client.Get(uri)
+	defer res.Body.Close()
+	if err != nil {
+		fmt.Printf("%d HTTP ERROR:%s", uri, err)
+		return
+	}
+	//TODO::保存
+	if !utils.IsDirExist(file) {
+		os.MkdirAll(file, 0755)
+		fmt.Printf("dir %s created\n", file)
+	}
+	//根据URL文件名创建文件
+	resp_body, err := ioutil.ReadAll(res.Body)
+	ioutil.WriteFile(file, resp_body, os.ModePerm)
+}
+
+// 下载语音消息
+func (h *Http) DownVideoImg(user *WxLoginStatus, msgid string, file string) {
+	uri := fmt.Sprintf(user.baseUri+"/webwxgetvideo?MsgID=%s&skey=%s", msgid, user.BaseRequest.Skey)
+
+	res, err := h.Client.Get(uri)
+
+	req, err := http.NewRequest("GET", uri, strings.NewReader(""))
+	if err != nil {
+		// handle error
+	}
+	req.Header.Set("Range", "bytes=0-")
+
+	resp, err := h.Client.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		fmt.Printf("%d HTTP ERROR:%s", uri, err)
 		return

@@ -154,10 +154,15 @@ func handleMessage(Msg types.Message) {
 
 		if strings.Contains(Msg.Content, "webwxgetpubliclinkimg") && Msg.Url != "" {
 			// 地理位置消息
+			str := strings.Split(Msg.Content, ":\n")
+			Msg.Content = str[0]
+			fmt.Println(Msg.Content)
+			fmt.Println(Msg.Url)
 		}
 		//TODO::如果FromUserName 存在于联系人，且
 		if strings.Contains(Msg.Content, "过了你的朋友验证请求") && Msg.FromUserName == "" {
 			// 通过好友验证消息
+			// 上面先处理的联系人变更， 所以，只要FromeUserName 能搜索到且搜到到字符就是新好友
 		}
 
 		// 文本消息
@@ -165,12 +170,21 @@ func handleMessage(Msg types.Message) {
 
 	case 3:
 		// 图片消息
+
 	case 34:
 		// 语音消息
+
 	case 37:
 		// 好友验证
+		// 提取好友头像
+		matches := utils.PregMatch(`bigheadimgurl="(.+?)"`, Msg.Content)
+		avatar := matches[1]
+		Msg.RecommendInfo.NickName = FormatContent(Msg.RecommendInfo.NickName)
+		fmt.Println(avatar)
+		fmt.Println(Msg.RecommendInfo)
 	case 42:
 		// 共享名片
+		fmt.Println(Msg)
 
 	case 43:
 		// 视频消息
@@ -185,9 +199,12 @@ func handleMessage(Msg types.Message) {
 		if Msg.Content == "该类型暂不支持，请在手机上查看" {
 			return
 		}
-		// 分享的网页
+		// 分享的网页 ,解析xml ， type 6 文件； 33 小程序； 查询公众号FormUserName，如果在公众号，就是公众号，否则就是网页
+
 	case 51:
-		// 点击事件（好友正在输入）
+		if Msg.ToUserName == Msg.StatusNotifyUserName {
+			// 点击事件（好友正在输入）
+		}
 	case 53:
 		// 视频电话
 
@@ -196,6 +213,10 @@ func handleMessage(Msg types.Message) {
 
 	case 10002:
 		// 撤回消息
+		msgID := utils.PregMatch(`<msgid>(\d+)<\/msgid>`, Msg.Content)
+		fmt.Println(msgID)
+		// 通过msgID获取上一条消息
+
 	case 10000:
 		if strings.Contains(Msg.Content, "利是") || strings.Contains(Msg.Content, "红包") {
 			// 红包消息
@@ -225,43 +246,69 @@ func handleMessage(Msg types.Message) {
 
 */
 
-func parseXml(xml string) {
-	if strings.HasSuffix(xml, "@") {
+type XmlItem struct {
+	Attr []Attr
+	Name string
+	Data string
+	Item map[string]XmlItem
+}
 
-		var t xml.Token
-		var err error
-		input := `@e58e8479d0f77b6375fb544dc2af506d:<br/>&lt;?xml version=\"1.0\"?&gt;<br/>&lt;msg bigheadimgurl=\"http://wx.qlogo.cn/mmhead/ver_1/PpML0xpicT8Jibj2nhXicWvx7rVHTsFjnyJWBWP1QAia6jrZFIMXakCG6ibGfYUhhIj5jdjX6iaRCBhGprgQgKSEaEUHTlic53lR3U2gaVjuAjvEBE/0\" smallheadimgurl=\"http://wx.qlogo.cn/mmhead/ver_1/PpML0xpicT8Jibj2nhXicWvx7rVHTsFjnyJWBWP1QAia6jrZFIMXakCG6ibGfYUhhIj5jdjX6iaRCBhGprgQgKSEaEUHTlic53lR3U2gaVjuAjvEBE/132\" username=\"v1_3a01496755a35b1f46a369f80cb19adbb7939ab1d3e38893924d9376494505a235dd2946a4218f01a8e725fbde7c1c93@stranger\" nickname=\"<span class=\"emoji emoji1f483\"></span>丢豆儿\"  shortpy=\"?DDE\" alias=\"\" imagestatus=\"3\" scene=\"17\" province=\"新加坡\" city=\"\" sign=\"\" sex=\"2\" certflag=\"0\" certinfo=\"\" brandIconUrl=\"\" brandHomeUrl=\"\" brandSubscriptConfigUrl=\"\" brandFlags=\"0\" regionCode=\"SG\" antispamticket=\"v2_a57d8b9245894cccd2b7044645de6ccfb0325ae14094ed5b9995b57b239b0e11dc4a59fb1665c2dfa886afacd68d3322@stranger\" /&gt;<br/>`
+type Attr struct {
+	Name  string
+	Value string
+}
 
-		input, _ = FormatXml(input)
+func ParseXml(input string) map[string]XmlItem {
+	if strings.HasSuffix(input, "@") {
+		//input, _ = FormatXml(input)
+	}
+	input, _ = FormatXml(input)
+	var t xml.Token
+	var err error
 
-		inputReader := strings.NewReader(input)
-		// 从文件读取，如可以如下：
-		// content, err := ioutil.ReadFile("studygolang.xml")
-		// decoder := xml.NewDecoder(bytes.NewBuffer(content))
-		decoder := xml.NewDecoder(inputReader)
-		for t, err = decoder.Token(); err == nil; t, err = decoder.Token() {
-			switch token := t.(type) {
-			// 处理元素开始（标签）
-			case xml.StartElement:
-				name := token.Name.Local
-				fmt.Printf("Token name: %s\n", name)
-				for _, attr := range token.Attr {
-					attrName := attr.Name.Local
-					attrValue := attr.Value
-					fmt.Printf("An attribute is: %s %s\n", attrName, attrValue)
-				}
-			// 处理元素结束（标签）
-			case xml.EndElement:
-				fmt.Printf("Token of '%s' end\n", token.Name.Local)
-			// 处理字符数据（这里就是元素的文本）
-			case xml.CharData:
-				content := string([]byte(token))
-				fmt.Printf("This is the content: %v\n", content)
-			default:
-				// ...
+	inputReader := strings.NewReader(input)
+	// 从文件读取，如可以如下：
+	// content, err := ioutil.ReadFile("studygolang.xml")
+	// decoder := xml.NewDecoder(bytes.NewBuffer(content))
+	decoder := xml.NewDecoder(inputReader)
+	tmp := map[string]XmlItem{}
+	tmp2 := XmlItem{}
+	for t, err = decoder.Token(); err == nil; t, err = decoder.Token() {
+
+		switch token := t.(type) {
+		// 处理元素开始（标签）
+		case xml.StartElement:
+			name := token.Name.Local
+			//fmt.Printf("Token name: %s\n", name)
+			item := []Attr{}
+			for _, attr := range token.Attr {
+				//fmt.Printf("An attribute is: %s %s\n", attr.Name.Local, attr.Value)
+				item = append(item, Attr{
+					Name:  attr.Name.Local,
+					Value: attr.Value,
+				})
 			}
+			tmp2 = XmlItem{
+				Name: name,
+				Attr: item,
+			}
+		// 处理元素结束（标签）
+		case xml.EndElement:
+			//fmt.Printf("Token of '%s' end\n", token.Name.Local)
+			tmp[tmp2.Name] = tmp2
+			tmp2 = XmlItem{}
+		// 处理字符数据（这里就是元素的文本）
+		case xml.CharData:
+			content := string([]byte(token))
+			//fmt.Printf("This is the content: %v\n", content)
+			tmp2.Data = content
+
+		default:
+			// ...
 		}
 	}
+
+	return tmp
 }
 
 // 格式化xml
