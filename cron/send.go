@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/pkg/errors"
+	"log"
 	"strconv"
 	"time"
 )
@@ -32,7 +34,7 @@ type RequestMsg struct {
 }
 
 // 发送文本消息
-func (user *WxLoginStatus) SendTextMsg(username string, msg string) {
+func (user *WxLoginStatus) SendTextMsg(username string, msg string) (string, error) {
 	url := fmt.Sprintf(user.baseUri+"/webwxsendmsg?pass_ticket=%s", user.passTicket)
 	rand := rands(17)
 	postData := SendMsgContent{
@@ -51,13 +53,19 @@ func (user *WxLoginStatus) SendTextMsg(username string, msg string) {
 	bs, err := json.Marshal(postData)
 	if err != nil {
 		// json解析错误
+		log.Println("[" + user.uuid + "] [ERROR] [21001] generate json error")
+		return "", errors.New("[21001] generate json error")
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	var textReq RequestMsg
 	err = json.Unmarshal([]byte(content), &textReq)
 	if err != nil {
 		// json解析错误
+		log.Println("[" + user.uuid + "] [ERROR] [21002] json error")
+		return "", errors.New("[21002] json error")
 	}
+	log.Println("[" + user.uuid + "] 发送给：[" + username + "] :" + content)
+	return textReq.MsgID, nil
 }
 
 // 发送图片消息

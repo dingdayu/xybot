@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/dingdayu/wxbot/model"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"gopkg.in/mgo.v2/bson"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -105,34 +107,8 @@ func init() {
 	go check()
 }
 
-func Test() {
-	done := make(chan struct{})
-
-	fmt.Println("开始登陆:")
-	uuid := GetUuid()
-	generateQrCode(uuid)
-	fmt.Println("开始等待扫描:")
-
-	// 写入通道
-	uuidChannel <- uuid
-
-	<-done
-	fmt.Println("登陆完成！")
-}
-
-func Xml() {
-	xmlt := `<error><ret>0</ret><message></message><skey>@crypt_72e9aa7b_61a26569cadf952888c3f75936954c52</skey><wxsid>lpfwvW5zDt2cnskg</wxsid><wxuin>8104085</wxuin><pass_ticket>KA7GAP8T5UXXFnSj2YFlImPULlXwbFxQmGWvLtxLRBk%3D</pass_ticket><isgrayscale>1</isgrayscale></error>`
-	var data loginXml
-	err := xml.Unmarshal([]byte(xmlt), &data)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	fmt.Println(data)
-
-}
-
 // 获取登陆uuid
-func GetUuid() string {
+func GetUuid() (string, error) {
 	url := "https://login.weixin.qq.com/jslogin"
 	data := make(map[string]string)
 	data["appid"] = "wx782c26e4c19acffb"
@@ -144,11 +120,12 @@ func GetUuid() string {
 
 	str := utils.PregMatch(`window.QRLogin.code = (\d+); window.QRLogin.uuid = \"(\S+?)\"`, content)
 	if str == nil {
-		fmt.Println("[ERROR] 请求UUID错误！")
-		return ""
+		return "", errors.New("[ERROR] 请求UUID错误！")
 	}
-	fmt.Println(str)
-	return str[1]
+	// 写入通道
+	uuidChannel <- str[1]
+	log.Println("[" + str[1] + "] 注册成功")
+	return str[1], nil
 }
 
 // 下载二维码
@@ -179,7 +156,7 @@ func waitForLogin(uuid string) {
 
 		switch code[0] {
 		case "201":
-			fmt.Println("请点击微信登陆推送！")
+			log.Println("[" + uuid + "] 开始登陆，等待通过认证申请")
 			avater := utils.PregMatch(`window.userAvatar = '(\S+?)';`, content)
 			if len(avater) > 1 {
 				fmt.Println(avater[0])
@@ -197,10 +174,10 @@ func waitForLogin(uuid string) {
 			pushUri = fmt.Sprintf(url, "webpush."+matches[1])
 			baseUri = fmt.Sprintf(url, matches[1])
 
-			fmt.Println("开始请求xml")
+			log.Println("[" + uuid + "] 开始请求xml")
 			loginXm := startLogin(uuid, redirectUri)
 
-			fmt.Println("开始拼接登陆状态")
+			log.Println("[" + uuid + "] 开始拼接登陆状态")
 
 			baseRequest := baseRequest{
 				Uin:      loginXm.Wxuin,
@@ -227,15 +204,16 @@ func waitForLogin(uuid string) {
 			}
 
 			//fmt.Println(WxMap[uuid])
-			WxMap[uuid].webwxinit(uuid)
+			WxMap[uuid].webwxinit()
 			return
 
 		case "408":
-			fmt.Println("等待中……")
+			log.Println("[" + uuid + "] 等待中……")
 			tip = 1
 			time.Sleep(time.Millisecond * 500)
 		default:
-			fmt.Println("登陆失败！错误码：" + code[0])
+			log.Println("[" + uuid + "] 登陆失败！错误码：" + code[0])
+
 			tip = 1
 		}
 	}
@@ -255,7 +233,7 @@ func startLogin(uuid string, redirectUri string) loginXml {
 }
 
 // 获取个人信息及最近聊天
-func (user *WxLoginStatus) webwxinit(uuid string) {
+func (user *WxLoginStatus) webwxinit() {
 	url := fmt.Sprintf(user.baseUri+"/webwxinit?r=%d&lang=zh_CN&pass_ticket=%s", strconv.FormatInt(time.Now().Unix(), 10), user.passTicket)
 
 	//
@@ -270,7 +248,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 		// json解析错误
 	}
 
-	content := NewHttp(uuid).Post(url, string(bs))
+	content := NewHttp(user.uuid).Post(url, string(bs))
 	//fmt.Println(content)
 	var wxinitResponse wxinitResponse
 	err = json.Unmarshal([]byte(content), &wxinitResponse)
@@ -280,7 +258,7 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 	}
 
 	if wxinitResponse.BaseResponse.Ret != 0 {
-		fmt.Println("初始化失败！")
+		log.Println("[" + user.uuid + "] 登陆初始化失败")
 		return
 	}
 
@@ -289,25 +267,25 @@ func (user *WxLoginStatus) webwxinit(uuid string) {
 	user.SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
 
 	// 保存登陆人资料
-	fmt.Println("初始化个人资料")
+	log.Println("[" + user.uuid + "] 初始化个人资料")
 	wxinitResponse.User.NickName = EmojiHandle(wxinitResponse.User.NickName)
 	// 复制登陆资料
 	user.LoginUser = wxinitResponse.User
 	var dbUser = model.User{}
 	utils.Struct2Struct(wxinitResponse.User, &dbUser)
-	dbUser.UUID = uuid
+	dbUser.UUID = user.uuid
 	dbUser.Time = int(time.Now().Unix())
 	model.UpsertUser(dbUser)
 
 	// 初始化联系人
-	fmt.Println("初始化联系人")
+	log.Println("[" + user.uuid + "] 初始化联系人")
 	// TODO::保存最近联系人里的群，公众号，联系人
 	for _, item := range wxinitResponse.ContactList {
 		item.NickName = EmojiHandle(item.NickName)
 		var contact = model.Contact{}
 		utils.Struct2Struct(item, &contact)
 		contact.LoginUin = wxinitResponse.User.Uin
-		contact.UUID = uuid
+		contact.UUID = user.uuid
 		contact.ContactType = getContactType(item, user.LoginUser.UserName)
 		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
 		model.UpsertContact(&contact)
@@ -401,7 +379,8 @@ func generateSyncKey(synckey SyncKey) string {
 
 // 获取好友列表
 func (user *WxLoginStatus) getContactList(seq int) {
-	fmt.Println("拉取好友列表")
+	log.Println("[" + user.uuid + "] 拉取好友列表")
+
 	url := fmt.Sprintf(user.baseUri+"/webwxgetcontact?lang=zh_CN&pass_ticket=%s&r=%s&seq=%s&skey=%s", user.passTicket,
 		strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(seq), user.BaseRequest.Skey)
 
@@ -430,7 +409,7 @@ func (user *WxLoginStatus) getContactList(seq int) {
 		contact.ContactType = getContactType(item, user.LoginUser.UserName)
 		model.UpsertContact(&contact)
 	}
-	fmt.Println("好友数量: " + strconv.Itoa(members.MemberCount))
+	log.Println("[" + user.uuid + "] 好友数量: " + strconv.Itoa(members.MemberCount))
 
 	if members.Seq != 0 {
 		user.getContactList(members.Seq)
@@ -470,12 +449,12 @@ func (user *WxLoginStatus) getBatchGroupMembers(batch []types.BatchGetContact) G
 
 // 同步群成员的详细资料
 func (user *WxLoginStatus) UpdateChatRoomSMembers() {
-	fmt.Println("同步群成员的详细资料")
+	log.Println("[" + user.uuid + "] 同步群成员的详细资料: ")
 	count := model.GetMemberCount(bson.M{"uuid": user.uuid})
 	page := (count + 50 - 1) / 50
 	for i := 1; i <= page; i++ {
 		time.Sleep(2e9)
-		fmt.Println("更新群成员资料：第" + strconv.Itoa(i) + "页,共" + strconv.Itoa(page) + "页")
+		log.Println("[" + user.uuid + "] 更新群成员资料：第" + strconv.Itoa(i) + "页,共" + strconv.Itoa(page) + "页")
 		members := model.GetLimitMember(50, i*50)
 		batch := []types.BatchGetContact{}
 		for _, v := range *members {

@@ -52,7 +52,7 @@ type ModContact struct {
 	NickName          string
 	Province          string
 	RemarkName        string
-	Sex               string
+	Sex               int
 	Signature         string
 	SnsFlag           int
 	Statues           int

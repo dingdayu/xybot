@@ -2,11 +2,12 @@ package cron
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
+	"github.com/IMQS/simplexml"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"html"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -37,7 +38,6 @@ type SyncStruct struct {
 }
 
 func (user *WxLoginStatus) CheckSync() {
-	fmt.Println("检查消息 =>" + time.Now().Format("2006-01-02 15:04"))
 	url := user.baseUri + "/synccheck?"
 
 	data := make(map[string]string)
@@ -85,7 +85,7 @@ func (user *WxLoginStatus) handleCheckSync(selector string) {
 
 // 获取新消息
 func (user *WxLoginStatus) Sync() {
-	fmt.Println("新有消息 =>" + time.Now().Format("2006-01-02 15:04"))
+	log.Println("[" + user.uuid + "] 有新消息")
 	url := fmt.Sprintf(user.baseUri+"/webwxsync?sid=%s&skey=%s&lang=zh_CN&pass_ticket=%s", user.BaseRequest.Sid, user.BaseRequest.Skey, user.passTicket)
 
 	type postDataStruct struct {
@@ -149,6 +149,8 @@ func handleSync(SyncMessage SyncStruct) {
 // FromUserName 两个@@ 就是群消息
 func handleMessage(Msg types.Message) {
 	Msg.Content = FormatContent(Msg.Content)
+
+	log.Println("[" + Msg.ToUserName + "] 有来自[" + Msg.FromUserName + "]消息：[" + strconv.Itoa(Msg.MsgType) + "] " + Msg.Content)
 	switch Msg.MsgType {
 	case 1:
 
@@ -246,80 +248,33 @@ func handleMessage(Msg types.Message) {
 
 */
 
-type XmlItem struct {
-	Attr []Attr
-	Name string
-	Data string
-	Item map[string]XmlItem
-}
-
-type Attr struct {
-	Name  string
-	Value string
-}
-
-func ParseXml(input string) map[string]XmlItem {
-	if strings.HasSuffix(input, "@") {
-		//input, _ = FormatXml(input)
-	}
+func ParseXml(input string, name string) map[string]string {
 	input, _ = FormatXml(input)
-	var t xml.Token
-	var err error
+	rte, _ := simplexml.NewDocumentFromReader(strings.NewReader(input))
+	att := rte.Root().Search().ByName(name).One().Attributes
 
-	inputReader := strings.NewReader(input)
-	// 从文件读取，如可以如下：
-	// content, err := ioutil.ReadFile("studygolang.xml")
-	// decoder := xml.NewDecoder(bytes.NewBuffer(content))
-	decoder := xml.NewDecoder(inputReader)
-	tmp := map[string]XmlItem{}
-	tmp2 := XmlItem{}
-	for t, err = decoder.Token(); err == nil; t, err = decoder.Token() {
-
-		switch token := t.(type) {
-		// 处理元素开始（标签）
-		case xml.StartElement:
-			name := token.Name.Local
-			//fmt.Printf("Token name: %s\n", name)
-			item := []Attr{}
-			for _, attr := range token.Attr {
-				//fmt.Printf("An attribute is: %s %s\n", attr.Name.Local, attr.Value)
-				item = append(item, Attr{
-					Name:  attr.Name.Local,
-					Value: attr.Value,
-				})
-			}
-			tmp2 = XmlItem{
-				Name: name,
-				Attr: item,
-			}
-		// 处理元素结束（标签）
-		case xml.EndElement:
-			//fmt.Printf("Token of '%s' end\n", token.Name.Local)
-			tmp[tmp2.Name] = tmp2
-			tmp2 = XmlItem{}
-		// 处理字符数据（这里就是元素的文本）
-		case xml.CharData:
-			content := string([]byte(token))
-			//fmt.Printf("This is the content: %v\n", content)
-			tmp2.Data = content
-
-		default:
-			// ...
-		}
+	ma := map[string]string{}
+	for _, v := range att {
+		ma[v.Name] = v.Value
 	}
 
-	return tmp
+	return ma
 }
 
 // 格式化xml
 func FormatXml(input string) (string, string) {
+	input = strings.Replace(input, "\\t", "", -1)
 	input = strings.Replace(input, "\\", "", -1)
+
 	input = FormatContent(input)
 
+	username := ""
 	content := utils.PregMatch(`(@\S+:)\n`, input)
-	username := strings.Trim(content[0], ":")
+	if len(content) > 0 {
+		username = strings.Trim(content[0], ":")
+		input = strings.Replace(input, content[0], "", 1)
+	}
 
-	input = strings.Replace(input, content[0], "", 1)
 	input = strings.Replace(input, "\n", "", -1)
 
 	return input, username
