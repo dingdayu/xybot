@@ -82,6 +82,23 @@ func SendText(w http.ResponseWriter, r *http.Request) {
 	RetJson(ret, w)
 }
 
+func Logout(w http.ResponseWriter, r *http.Request) {
+	uuid := r.FormValue("uuid")
+
+	ret := RetT{}
+	if v, ok := cron.WxMap[uuid]; ok {
+		err := v.Logout()
+		if err != nil {
+			ret = RetT{Code: 301, Msg: err.Error()}
+		} else {
+			ret = RetT{Code: 200, Msg: "success"}
+		}
+	} else {
+		ret = RetT{Code: 401, Msg: "uuid errror"}
+	}
+	RetJson(ret, w)
+}
+
 // 返回json
 func RetJson(v interface{}, w http.ResponseWriter) {
 	// 返回json的类型头信息

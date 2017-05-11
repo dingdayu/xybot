@@ -19,6 +19,7 @@ func httpGet() {
 
 	http.HandleFunc("/api/getUUID", safeWebHandler(api.GetUUID))
 	http.HandleFunc("/api/sendTextMsg", safeWebHandler(api.SendText))
+	http.HandleFunc("/api/logout", safeWebHandler(api.Logout))
 
 	//models.GetUser()
 	//utils.Browser("http://127.0.0.1:8080");

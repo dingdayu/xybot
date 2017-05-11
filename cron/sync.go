@@ -56,6 +56,7 @@ func (user *WxLoginStatus) CheckSync() {
 	selector := ret[1]
 	if retcode == "1100" || retcode == "1101" {
 		fmt.Println("微信客户端正常退出")
+		delete(WxMap, user.uuid)
 	}
 	if retcode == "0" {
 		user.handleCheckSync(selector)

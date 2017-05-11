@@ -473,7 +473,7 @@ func (user *WxLoginStatus) UpdateChatRoomSMembers() {
 }
 
 // 登出
-func (user *WxLoginStatus) Logout() {
+func (user *WxLoginStatus) Logout() error {
 	url := fmt.Sprintf(user.baseUri+"/webwxlogout?redirect=1&type=1&skey=%s", user.BaseRequest.Skey)
 
 	type postDataStruct struct {
@@ -488,9 +488,12 @@ func (user *WxLoginStatus) Logout() {
 	bs, err := json.Marshal(postData)
 	if err != nil {
 		// json解析错误
+		log.Println("[" + user.uuid + "] [ERROR] [22001] json error")
+		return errors.New("[22001] json error")
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	fmt.Println(content)
+	return nil
 }
 
 // 随机数字符串
