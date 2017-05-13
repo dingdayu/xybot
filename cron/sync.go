@@ -8,7 +8,6 @@ import (
 	"github.com/dingdayu/wxbot/utils"
 	"html"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -37,7 +36,30 @@ type SyncStruct struct {
 	SyncCheckKey           SyncKey
 }
 
+func init() {
+	go forcheck()
+}
+
+func forcheck() {
+	for {
+		for k, _ := range WxMap {
+			if item, ok := WxMap[k]; ok {
+				if item.SyncOff {
+					go item.CheckSync()
+				}
+			}
+
+		}
+		time.Sleep(3e9)
+
+	}
+}
+
 func (user *WxLoginStatus) CheckSync() {
+	log.Println(user.uuid + ": 同步信息")
+	// 锁
+	user.SyncOff = false
+
 	url := user.baseUri + "/synccheck?"
 
 	data := make(map[string]string)
@@ -60,16 +82,16 @@ func (user *WxLoginStatus) CheckSync() {
 	}
 	if retcode == "0" {
 		user.handleCheckSync(selector)
+		user.SyncOff = true
 	}
 
 	if retcode == "1101" {
-		fmt.Println(content)
 		fmt.Println("从其它设备上登了网页微信！")
-		os.Exit(0)
+		delete(WxMap, user.uuid)
 	}
 	if retcode == "1100" {
 		fmt.Println("从微信客户端上登出！")
-		os.Exit(0)
+		delete(WxMap, user.uuid)
 	}
 }
 

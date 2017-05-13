@@ -64,7 +64,7 @@ func (user *WxLoginStatus) SendTextMsg(username string, msg string) (string, err
 		log.Println("[" + user.uuid + "] [ERROR] [21002] json error")
 		return "", errors.New("[21002] json error")
 	}
-	log.Println("[" + user.uuid + "] 发送给：[" + username + "] :" + content)
+	log.Println("[" + user.uuid + "] 发送给：[" + username + "] :" + msg)
 	return textReq.MsgID, nil
 }
 

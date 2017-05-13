@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,14 @@ var redirectUri = ""
 var fileUri = ""
 var pushUri = ""
 var baseUri = ""
+
+const WX_STATUE_SCANING = "scanning"
+const WX_STATUE_INIT = "initialize"
+const WX_STATUE_INIT_SELF = "init_self"
+const WX_STATUE_INIT_CONTACT = "init_contact"
+const WX_STATUE_INIT_GROUP_MEMBER = "init_group"
+const WX_STATUE_LONGING = "logining"
+const WX_STATUE_ERROR = "error"
 
 // 登陆需要xml解析类型
 type loginXml struct {
@@ -78,6 +87,10 @@ type WxLoginStatus struct {
 
 	SyncKey    SyncKey
 	SyncKeyStr string
+
+	SyncOff bool
+
+	Statue string
 }
 
 //wxinit 时需要提交的数据json格式
@@ -100,6 +113,7 @@ var uuidChannel chan string
 
 // 登陆的用户组
 var WxMap map[string]*WxLoginStatus
+var WxMapLock sync.RWMutex
 
 func init() {
 	uuidChannel = make(chan string)
@@ -192,6 +206,8 @@ func waitForLogin(uuid string) {
 				v.fileUri = fileUri
 				v.passTicket = strings.TrimSpace(loginXm.PassTicket)
 				v.BaseRequest = baseRequest
+				v.SyncOff = false
+				v.Statue = WX_STATUE_SCANING
 			} else {
 				WxMap[uuid] = &WxLoginStatus{
 					uuid:        uuid,
@@ -200,11 +216,15 @@ func waitForLogin(uuid string) {
 					fileUri:     fileUri,
 					passTicket:  strings.TrimSpace(loginXm.PassTicket),
 					BaseRequest: baseRequest,
+					SyncOff:     false,
+					Statue:      WX_STATUE_SCANING,
 				}
 			}
 
+			WxMapLock.Lock()
 			//fmt.Println(WxMap[uuid])
 			WxMap[uuid].webwxinit()
+			WxMapLock.Unlock()
 			return
 
 		case "408":
@@ -247,6 +267,7 @@ func (user *WxLoginStatus) webwxinit() {
 	if err != nil {
 		// json解析错误
 	}
+	user.Statue = WX_STATUE_INIT
 
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	//fmt.Println(content)
@@ -259,6 +280,7 @@ func (user *WxLoginStatus) webwxinit() {
 
 	if wxinitResponse.BaseResponse.Ret != 0 {
 		log.Println("[" + user.uuid + "] 登陆初始化失败")
+		delete(WxMap, user.uuid)
 		return
 	}
 
@@ -267,6 +289,7 @@ func (user *WxLoginStatus) webwxinit() {
 	user.SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
 
 	// 保存登陆人资料
+	user.Statue = WX_STATUE_INIT_SELF
 	log.Println("[" + user.uuid + "] 初始化个人资料")
 	wxinitResponse.User.NickName = EmojiHandle(wxinitResponse.User.NickName)
 	// 复制登陆资料
@@ -278,7 +301,8 @@ func (user *WxLoginStatus) webwxinit() {
 	model.UpsertUser(dbUser)
 
 	// 初始化联系人
-	log.Println("[" + user.uuid + "] 初始化联系人")
+	user.Statue = WX_STATUE_INIT_CONTACT
+	log.Println("[" + user.uuid + "] 初始化近期联系人")
 	// TODO::保存最近联系人里的群，公众号，联系人
 	for _, item := range wxinitResponse.ContactList {
 		item.NickName = EmojiHandle(item.NickName)
@@ -292,44 +316,14 @@ func (user *WxLoginStatus) webwxinit() {
 	}
 	// TODO::复制联系人对象
 	// 获取全部的好友列表
-	user.getContactList(0)
+	go user.getContactList(0)
 
 	// 根据群UserName获取所有群的群成员列表
-	chatRommList := model.GetLimitContact(bson.M{"uuid": user.uuid, "contact_type": "ChatRooms"}, 50, 0)
-	batch := []types.BatchGetContact{}
-	for _, v := range *chatRommList {
-		batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: ""})
-	}
-	groupMembers := user.getBatchGroupMembers(batch)
-	for _, item := range groupMembers.ContactList {
-		var contact = model.Contact{}
-		item.NickName = EmojiHandle(item.NickName)
-		utils.Struct2Struct(item, &contact)
-		contact.LoginUin = user.BaseRequest.Uin
-		contact.UUID = user.uuid
-		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
-		contact.ContactType = getContactType(item, user.LoginUser.UserName)
-		model.UpsertContact(&contact)
-		// 将群成员加入成员表
-		if len(item.MemberList) > 0 {
-			for _, items := range item.MemberList {
-				items.NickName = EmojiHandle(items.NickName)
-				var member = model.Member{}
-				utils.Struct2Struct(items, &member)
-				member.HeadImgUrl = user.baseUri + member.HeadImgUrl
-				member.ChatRoomUserName = item.UserName
-				member.UUID = user.uuid
-				member.LoginUin = user.BaseRequest.Uin
-				model.UpsertMember(&member)
-			}
-		}
-	}
+	user.Statue = WX_STATUE_INIT_GROUP_MEMBER
+	go user.updateGroupMembers()
 
-	for {
-		user.CheckSync()
-		time.Sleep(2e9)
-	}
-
+	user.SyncOff = true
+	user.Statue = WX_STATUE_LONGING
 }
 
 // 开启状态通知
@@ -409,10 +403,43 @@ func (user *WxLoginStatus) getContactList(seq int) {
 		contact.ContactType = getContactType(item, user.LoginUser.UserName)
 		model.UpsertContact(&contact)
 	}
-	log.Println("[" + user.uuid + "] 好友数量: " + strconv.Itoa(members.MemberCount))
+	log.Println("[" + user.uuid + "] 好友数量: " + strconv.Itoa(members.MemberCount) + "|" + strconv.Itoa(members.Seq))
 
 	if members.Seq != 0 {
 		user.getContactList(members.Seq)
+	}
+}
+
+// 根据群UserName获取所有群的群成员列表
+func (user *WxLoginStatus) updateGroupMembers() {
+	chatRommList := model.GetLimitContact(bson.M{"uuid": user.uuid, "contact_type": "ChatRooms"}, 50, 0)
+	batch := []types.BatchGetContact{}
+	for _, v := range *chatRommList {
+		batch = append(batch, types.BatchGetContact{UserName: v.UserName, EncryChatRoomId: ""})
+	}
+	groupMembers := user.getBatchGroupMembers(batch)
+	for _, item := range groupMembers.ContactList {
+		var contact = model.Contact{}
+		item.NickName = EmojiHandle(item.NickName)
+		utils.Struct2Struct(item, &contact)
+		contact.LoginUin = user.BaseRequest.Uin
+		contact.UUID = user.uuid
+		contact.HeadImgUrl = user.baseUri + item.HeadImgUrl
+		contact.ContactType = getContactType(item, user.LoginUser.UserName)
+		model.UpsertContact(&contact)
+		// 将群成员加入成员表
+		if len(item.MemberList) > 0 {
+			for _, items := range item.MemberList {
+				items.NickName = EmojiHandle(items.NickName)
+				var member = model.Member{}
+				utils.Struct2Struct(items, &member)
+				member.HeadImgUrl = user.baseUri + member.HeadImgUrl
+				member.ChatRoomUserName = item.UserName
+				member.UUID = user.uuid
+				member.LoginUin = user.BaseRequest.Uin
+				model.UpsertMember(&member)
+			}
+		}
 	}
 }
 
@@ -491,8 +518,7 @@ func (user *WxLoginStatus) Logout() error {
 		log.Println("[" + user.uuid + "] [ERROR] [22001] json error")
 		return errors.New("[22001] json error")
 	}
-	content := NewHttp(user.uuid).Post(url, string(bs))
-	fmt.Println(content)
+	NewHttp(user.uuid).Post(url, string(bs))
 	return nil
 }
 

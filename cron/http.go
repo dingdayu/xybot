@@ -2,12 +2,14 @@ package cron
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/dingdayu/wxbot/utils"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -60,15 +63,29 @@ func NewHttp(uuid string) *Http {
 	} else {
 		cookieJar, _ = cookiejar.New(nil)
 	}
+	// Create New http Transport
+	transCfg := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // disable verify
+	}
 
 	client := &http.Client{
-		Jar: cookieJar,
+		Jar:       cookieJar,
+		Transport: transCfg,
+		Timeout:   time.Duration(300 * time.Second),
 	}
 	return &Http{Client: client, Jar: cookieJar}
 }
 
 // get发送字符串的map调用
 func (h *Http) Get(url string, params map[string]string) string {
+
+	defer func() {
+		// 终止（拦截）错误的传递
+		if e, ok := recover().(error); ok {
+			log.Printf("WARN: panic in %v. - %v\n", "GET", e)
+			log.Println(string(debug.Stack()))
+		}
+	}()
 
 	if !strings.Contains(url, "?") {
 		url += "?"
