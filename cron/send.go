@@ -72,7 +72,7 @@ func (user *WxLoginStatus) SendTextMsg(username string, msg string) (string, err
 func (user *WxLoginStatus) SendEmoticonMsg(username string, file string) {
 
 	uri := fmt.Sprintf(user.baseUri+"/webwxsendemoticon?fun=sys&f=json&pass_ticket=%s", user.passTicket)
-	MediaId := NewHttp(user.uuid).UploadMedia(user, username, file)
+	MediaId, _ := NewHttp(user.uuid).UploadMedia(user, username, file)
 
 	msg := SendMsgContent{
 		BaseRequest: user.BaseRequest,
@@ -101,10 +101,13 @@ func (user *WxLoginStatus) SendEmoticonMsg(username string, file string) {
 }
 
 // 发送图片消息
-func (user *WxLoginStatus) SendImagesMsg(username string, file string) {
+func (user *WxLoginStatus) SendImagesMsg(username string, file string) (string, error) {
 
 	uri := fmt.Sprintf(user.baseUri+"/webwxsendmsgimg?fun=async&f=json&pass_ticket=%s", user.passTicket)
-	MediaId := NewHttp(user.uuid).UploadMedia(user, username, file)
+	MediaId, err := NewHttp(user.uuid).UploadMedia(user, username, file)
+	if err != nil {
+		return "", err
+	}
 
 	msg := SendMsgContent{
 		BaseRequest: user.BaseRequest,
@@ -122,20 +125,23 @@ func (user *WxLoginStatus) SendImagesMsg(username string, file string) {
 	bs, err := json.Marshal(msg)
 	if err != nil {
 		// json解析错误
+		return "", err
 	}
 	content := NewHttp(user.uuid).Post(uri, string(bs))
 	var imgReq RequestMsg
 	err = json.Unmarshal([]byte(content), &imgReq)
 	if err != nil {
 		// json解析错误
+		return "", err
 	}
+	return imgReq.MsgID, nil
 }
 
 // 发送视频消息
 func (user *WxLoginStatus) SendVideoMsg(username string, file string) {
 
 	uri := fmt.Sprintf(user.baseUri+"/webwxsendvideomsgx?fun=async&f=json&pass_ticket=%s", user.passTicket)
-	MediaId := NewHttp(user.uuid).UploadMedia(user, username, file)
+	MediaId, _ := NewHttp(user.uuid).UploadMedia(user, username, file)
 
 	msg := SendMsgContent{
 		BaseRequest: user.BaseRequest,

@@ -12,6 +12,7 @@ import (
 
 func UploadHandle(w http.ResponseWriter, r *http.Request) {
 	uuid := r.FormValue("uuid")
+	username := r.FormValue("username")
 	ret := RetT{}
 	if uuid == "" {
 		ret = RetT{Code: 302, Msg: "uuid Not Empty"}
@@ -47,7 +48,15 @@ func UploadHandle(w http.ResponseWriter, r *http.Request) {
 		defer f.Close()
 		io.Copy(f, file)
 
-		ret = RetT{Code: 200, Msg: "success"}
+		msgid, err := us.SendImagesMsg(username, path+head.Filename)
+		if err == nil {
+			data := map[string]string{}
+			data["msgid"] = msgid
+			ret = RetT{Code: 200, Msg: "success", Data: data}
+		} else {
+			ret = RetT{Code: 304, Msg: "MediaId Error:" + err.Error()}
+		}
+
 	} else {
 		ret = RetT{Code: 301, Msg: "Method Error"}
 	}

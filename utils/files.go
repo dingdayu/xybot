@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/md5"
+	"fmt"
 	"io/ioutil"
 	"os"
 )
@@ -19,9 +20,10 @@ func Md5SumFile(file string) (value [md5.Size]byte, err error) {
 // 文件目录是否存在
 func IsDirExist(path string) bool {
 	p, err := os.Stat(path)
+	fmt.Println(p)
 	if err != nil {
 		return os.IsExist(err)
 	} else {
-		return p.IsDir()
+		return true
 	}
 }

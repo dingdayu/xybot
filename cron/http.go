@@ -227,12 +227,12 @@ func (h *Http) GetTicket(uri string) (string, error) {
 // 上传资源文件
 // 大于 1048576 使用秒传
 // API_webwxpreview + "?fun=preview&mediaid=" + t.MediaId 预览
-func (h *Http) UploadMedia(user *WxLoginStatus, username string, file string) string {
+func (h *Http) UploadMedia(user *WxLoginStatus, username string, file string) (string, error) {
 
 	uri := user.fileUri + "/webwxuploadmedia?f=json"
 	// 检查文件是否存在
 	if !utils.IsDirExist(file) {
-		panic(errors.New("文件未找到"))
+		return "", errors.New("文件未找到: " + file)
 	}
 	mediaCount++
 
@@ -275,7 +275,7 @@ func (h *Http) UploadMedia(user *WxLoginStatus, username string, file string) st
 
 	bs, err := json.Marshal(uploadmediarequest)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	v := make(map[string]string)
@@ -303,9 +303,10 @@ func (h *Http) UploadMedia(user *WxLoginStatus, username string, file string) st
 	err = json.Unmarshal([]byte(content), &ret)
 	if err != nil {
 		// json解析错误
+		return "", err
 	}
 
-	return ret.MediaId
+	return ret.MediaId, nil
 }
 
 // 获取上传文件类型
