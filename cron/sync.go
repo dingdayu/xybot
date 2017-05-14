@@ -56,7 +56,7 @@ func forcheck() {
 }
 
 func (user *WxLoginStatus) CheckSync() {
-	log.Println(user.uuid + ": 同步信息")
+	//log.Println(user.uuid + ": 同步信息")
 	// 锁
 	user.SyncOff = false
 
@@ -72,26 +72,34 @@ func (user *WxLoginStatus) CheckSync() {
 	data["_"] = strconv.FormatInt(time.Now().Unix(), 10)
 
 	content := NewHttp(user.uuid).Get(url, data)
+	if len(content) <= 0 {
+		user.SyncOff = true
+		return
+	}
 	ret := utils.PregMatch(`window.synccheck=\{retcode:"(\d+)",selector:"(\d+)"\}`, content)
 
 	retcode := ret[0]
 	selector := ret[1]
 	if retcode == "1100" || retcode == "1101" {
-		fmt.Println("微信客户端正常退出")
+		log.Println("[" + user.uuid + "] 微信客户端正常退出")
 		delete(WxMap, user.uuid)
+		return
 	}
 	if retcode == "0" {
 		user.handleCheckSync(selector)
 		user.SyncOff = true
+		return
 	}
 
 	if retcode == "1101" {
 		fmt.Println("从其它设备上登了网页微信！")
 		delete(WxMap, user.uuid)
+		return
 	}
 	if retcode == "1100" {
 		fmt.Println("从微信客户端上登出！")
 		delete(WxMap, user.uuid)
+		return
 	}
 }
 

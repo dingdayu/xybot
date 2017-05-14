@@ -82,6 +82,39 @@ func SendText(w http.ResponseWriter, r *http.Request) {
 	RetJson(ret, w)
 }
 
+// 获取用户状态
+func GetStatus(w http.ResponseWriter, r *http.Request) {
+	uuid := r.FormValue("uuid")
+	ret := RetT{}
+	if v, ok := cron.WxMap[uuid]; ok {
+		data := map[string]string{}
+		data["status"] = v.Statue
+		ret = RetT{200, "success", data}
+	} else {
+		ret = RetT{Code: 401, Msg: "uuid errror"}
+	}
+	RetJson(ret, w)
+}
+
+func GetAllStatus(w http.ResponseWriter, r *http.Request) {
+	ret := RetT{}
+	data := make(map[string]interface{})
+	data["count"] = len(cron.WxMap)
+
+	type listT struct {
+		UUID     string `json:"uuid,omitempty"`
+		NickName string `json:"nickname,omitempty"`
+	}
+	list := []listT{}
+	for uuid, item := range cron.WxMap {
+		list = append(list, listT{UUID: uuid, NickName: item.LoginUser.NickName})
+	}
+	data["list"] = list
+	ret = RetT{200, "success", data}
+	RetJson(ret, w)
+}
+
+// 登出
 func Logout(w http.ResponseWriter, r *http.Request) {
 	uuid := r.FormValue("uuid")
 
@@ -89,7 +122,11 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	if v, ok := cron.WxMap[uuid]; ok {
 		err := v.Logout()
 		if err != nil {
-			ret = RetT{Code: 301, Msg: err.Error()}
+			if _, ok := cron.WxMap[uuid]; ok {
+				ret = RetT{Code: 302, Msg: "logout error!"}
+			} else {
+				ret = RetT{Code: 200, Msg: "success"}
+			}
 		} else {
 			ret = RetT{Code: 200, Msg: "success"}
 		}

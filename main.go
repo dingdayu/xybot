@@ -22,9 +22,13 @@ func httpGet() {
 	http.HandleFunc("/", safeWebHandler(web.Hello))
 	http.HandleFunc("/debug/vas", safeWebHandler(metricsHandler))
 
-	http.HandleFunc("/api/getUUID", safeWebHandler(api.GetUUID))
-	http.HandleFunc("/api/sendTextMsg", safeWebHandler(api.SendText))
-	http.HandleFunc("/api/logout", safeWebHandler(api.Logout))
+	http.HandleFunc("/api/send/text", safeWebHandler(api.SendText))
+	http.HandleFunc("/api/user/login", safeWebHandler(api.GetUUID))
+	http.HandleFunc("/api/user/logout", safeWebHandler(api.Logout))
+	http.HandleFunc("/api/user/status", safeWebHandler(api.GetStatus))
+	http.HandleFunc("/api/user/all", safeWebHandler(api.GetAllStatus))
+
+	http.HandleFunc("/api/file/update", safeWebHandler(api.UploadHandle))
 
 	//models.GetUser()
 	//utils.Browser("http://127.0.0.1:8080");
