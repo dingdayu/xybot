@@ -138,6 +138,10 @@ func GetUuid() (string, error) {
 	}
 	// 写入通道
 	uuidChannel <- str[1]
+
+	// 存入数据库
+	model.UpsertUUID(model.UUIDDBT{UUID: str[1], Time: int(time.Now().Unix()), Status: WX_STATUE_INIT})
+
 	log.Println("[" + str[1] + "] 注册成功")
 	return str[1], nil
 }
@@ -207,7 +211,6 @@ func waitForLogin(uuid string) {
 				v.passTicket = strings.TrimSpace(loginXm.PassTicket)
 				v.BaseRequest = baseRequest
 				v.SyncOff = false
-				v.Statue = WX_STATUE_SCANING
 			} else {
 				WxMap[uuid] = &WxLoginStatus{
 					uuid:        uuid,
@@ -217,9 +220,10 @@ func waitForLogin(uuid string) {
 					passTicket:  strings.TrimSpace(loginXm.PassTicket),
 					BaseRequest: baseRequest,
 					SyncOff:     false,
-					Statue:      WX_STATUE_SCANING,
 				}
 			}
+			// 设置用户状态
+			WxMap[uuid].updateStatus(WX_STATUE_SCANING)
 
 			WxMapLock.Lock()
 			//fmt.Println(WxMap[uuid])
@@ -267,7 +271,6 @@ func (user *WxLoginStatus) webwxinit() {
 	if err != nil {
 		// json解析错误
 	}
-	user.Statue = WX_STATUE_INIT
 
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	//fmt.Println(content)
@@ -279,6 +282,7 @@ func (user *WxLoginStatus) webwxinit() {
 	}
 
 	if wxinitResponse.BaseResponse.Ret != 0 {
+		user.updateStatus(WX_STATUE_ERROR)
 		log.Println("[" + user.uuid + "] 登陆初始化失败")
 		delete(WxMap, user.uuid)
 		return
@@ -289,7 +293,7 @@ func (user *WxLoginStatus) webwxinit() {
 	user.SyncKeyStr = generateSyncKey(wxinitResponse.SyncKey)
 
 	// 保存登陆人资料
-	user.Statue = WX_STATUE_INIT_SELF
+	user.updateStatus(WX_STATUE_INIT_SELF)
 	log.Println("[" + user.uuid + "] 初始化个人资料")
 	wxinitResponse.User.NickName = EmojiHandle(wxinitResponse.User.NickName)
 	// 复制登陆资料
@@ -301,7 +305,7 @@ func (user *WxLoginStatus) webwxinit() {
 	model.UpsertUser(dbUser)
 
 	// 初始化联系人
-	user.Statue = WX_STATUE_INIT_CONTACT
+	user.updateStatus(WX_STATUE_INIT_CONTACT)
 	log.Println("[" + user.uuid + "] 初始化近期联系人")
 	// TODO::保存最近联系人里的群，公众号，联系人
 	for _, item := range wxinitResponse.ContactList {
@@ -316,14 +320,14 @@ func (user *WxLoginStatus) webwxinit() {
 	}
 	// TODO::复制联系人对象
 	// 获取全部的好友列表
-	go user.getContactList(0)
+	user.getContactList(0)
 
 	// 根据群UserName获取所有群的群成员列表
-	user.Statue = WX_STATUE_INIT_GROUP_MEMBER
-	go user.updateGroupMembers()
+	user.updateStatus(WX_STATUE_INIT_GROUP_MEMBER)
+	user.updateGroupMembers()
 
 	user.SyncOff = true
-	user.Statue = WX_STATUE_LONGING
+	user.updateStatus(WX_STATUE_LONGING)
 }
 
 // 开启状态通知
@@ -371,6 +375,12 @@ func generateSyncKey(synckey SyncKey) string {
 	return ""
 }
 
+func (user *WxLoginStatus) updateStatus(status string) {
+	// 存入数据库
+	model.UpsertUUID(model.UUIDDBT{UUID: user.uuid, Status: status})
+	user.Statue = status
+}
+
 // 获取好友列表
 func (user *WxLoginStatus) getContactList(seq int) {
 	log.Println("[" + user.uuid + "] 拉取好友列表")
@@ -412,6 +422,7 @@ func (user *WxLoginStatus) getContactList(seq int) {
 
 // 根据群UserName获取所有群的群成员列表
 func (user *WxLoginStatus) updateGroupMembers() {
+	log.Println("[" + user.uuid + "] 更新群成员")
 	chatRommList := model.GetLimitContact(bson.M{"uuid": user.uuid, "contact_type": "ChatRooms"}, 50, 0)
 	batch := []types.BatchGetContact{}
 	for _, v := range *chatRommList {

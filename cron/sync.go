@@ -203,6 +203,9 @@ func handleMessage(Msg types.Message) {
 
 	case 3:
 		// 图片消息
+		img := map[string]string{}
+		img = ParseXml(Msg.Content, "img")
+		fmt.Println(img)
 
 	case 34:
 		// 语音消息
