@@ -6,7 +6,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const UUID_COLLECTION_NAME = "users"
+const UUID_COLLECTION_NAME = "uuid"
 
 type UUIDDBT struct {
 	Id   bson.ObjectId `bson:"_id,omitempty"`
@@ -34,4 +34,14 @@ func UpsertUUID(u UUIDDBT) {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+}
+
+func GetUUIDTByUUID(uuid string) *UUIDDBT {
+
+	uuidT := new(UUIDDBT)
+	query := func(c *mgo.Collection) error {
+		return c.Find(bson.M{"uuid": uuid}).One(&uuidT)
+	}
+	witchCollection(UUID_COLLECTION_NAME, query)
+	return uuidT
 }

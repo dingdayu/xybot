@@ -23,8 +23,10 @@ var fileUri = ""
 var pushUri = ""
 var baseUri = ""
 
-const WX_STATUE_SCANING = "scanning"
 const WX_STATUE_INIT = "initialize"
+const WX_STATUE_TIME_OUT = "time_out"
+const WX_STATUE_SCANING = "scanning"
+
 const WX_STATUE_INIT_SELF = "init_self"
 const WX_STATUE_INIT_CONTACT = "init_contact"
 const WX_STATUE_INIT_GROUP_MEMBER = "init_group"
@@ -223,7 +225,7 @@ func waitForLogin(uuid string) {
 				}
 			}
 			// 设置用户状态
-			WxMap[uuid].updateStatus(WX_STATUE_SCANING)
+			model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_SCANING})
 
 			WxMapLock.Lock()
 			//fmt.Println(WxMap[uuid])
@@ -237,10 +239,11 @@ func waitForLogin(uuid string) {
 			time.Sleep(time.Millisecond * 500)
 		default:
 			log.Println("[" + uuid + "] 登陆失败！错误码：" + code[0])
-
+			model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_TIME_OUT})
 			tip = 1
 		}
 	}
+	model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_TIME_OUT})
 
 }
 

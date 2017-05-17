@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dingdayu/wxbot/cron"
+	"github.com/dingdayu/wxbot/model"
 	"io"
 	"net/http"
 )
@@ -91,7 +92,15 @@ func GetStatus(w http.ResponseWriter, r *http.Request) {
 		data["status"] = v.Statue
 		ret = RetT{200, "success", data}
 	} else {
-		ret = RetT{Code: 401, Msg: "uuid errror"}
+		u := model.GetUUIDTByUUID(uuid)
+		if u.Id.Valid() {
+			data := map[string]string{}
+			data["status"] = u.Status
+			ret = RetT{Code: 200, Msg: "success", Data: data}
+		} else {
+			ret = RetT{Code: 401, Msg: "uuid errror"}
+		}
+
 	}
 	RetJson(ret, w)
 }
