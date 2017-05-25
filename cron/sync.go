@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/IMQS/simplexml"
+	"github.com/dingdayu/wxbot/model"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"html"
@@ -12,6 +13,38 @@ import (
 	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	//// 申请加为好友
+	//RequestFriend  = "RequestFriend"
+	//// 申请好友通过
+	ReceiveAddFriendResult = "ReceiveAddFriendResult"
+	//// 位置分享
+	Location = "Location"
+	//// 被踢下线
+	//ReceiveKickOut  = "ReceiveKickOut"
+	//// 登陆成功
+	//LoginSucceed  = "LoginSucceed"
+	//// 群成员信息更新
+	//ReceiveMemberCardChanged  = "ReceiveMemberCardChanged"
+	//// 新成员入群
+	//NewMemberJoinCluster  = "NewMemberJoinCluster"
+	//// 加入新群
+	//MeJoinCluster  = "MeJoinCluster"
+	//// 收到有人退出群
+	//MemberExitCluster  = "MemberExitCluster"
+	//// 收到有人被踢出群
+	//MemberKickCluste  = "MemberKickCluste"
+
+	ReceiveTextMessage  = "ReceiveTextMessage"
+	ReceiveImageMessage = "ReceiveImageMessage"
+	ReceiveVoiceMessage = "ReceiveVoiceMessage"
+	ReceiveVideoMessage = "ReceiveVideoMessage"
+	// TODO:: ReceiveSignatureChanged 修改签名
+	// TODO:: ReceiveInputState 输入状态
+	// TODO::  位置共享
+	// TODO::  停止位置共享
 )
 
 func init() {
@@ -25,11 +58,11 @@ type SyncStruct struct {
 	AddMsgList             []types.Message
 	ContinueFlag           int
 	DelContactCount        int
-	DelContactList         []interface{}
+	DelContactList         []model.Contact
 	ModChatRoomMemberCount int
 	ModChatRoomMemberList  []interface{}
 	ModContactCount        int
-	ModContactList         []types.ModContact
+	ModContactList         []model.Contact
 	Profile                types.Profile
 	SKey                   string
 	SyncKey                SyncKey
@@ -42,7 +75,7 @@ func init() {
 
 func forcheck() {
 	for {
-		for k, _ := range WxMap {
+		for k := range WxMap {
 			if item, ok := WxMap[k]; ok {
 				if item.SyncOff {
 					go item.CheckSync()
@@ -135,6 +168,7 @@ func (user *WxLoginStatus) Sync() {
 	}
 	content := NewHttp(user.uuid).Post(url, string(bs))
 	var SyncMessage SyncStruct
+	fmt.Println(content)
 	err = json.Unmarshal([]byte(content), &SyncMessage)
 	if err != nil {
 		// json解析错误
@@ -146,31 +180,35 @@ func (user *WxLoginStatus) Sync() {
 		user.SyncKey = SyncMessage.SyncKey
 		user.SyncKeyStr = generateSyncKey(SyncMessage.SyncKey)
 
-		handleSync(SyncMessage)
+		user.handleSync(SyncMessage)
 	}
 
 }
 
 // 处理新消息
-func handleSync(SyncMessage SyncStruct) {
+func (user *WxLoginStatus) handleSync(SyncMessage SyncStruct) {
 	if len(SyncMessage.ModContactList) > 0 {
 		// 群变动
 		// 检查 UserName 两个@@ 群成员变动
 		// 否则 群成员编号
 		for _, modContac := range SyncMessage.ModContactList {
 			if strings.Contains(modContac.UserName, "@@") {
-				// 更新群成员信息
-				// 新建群
-
-			} else {
-				// 联系人更新资料 TODO::暂时无效
+				if len(modContac.MemberList) > 0 {
+					// 更新群成员信息, 组合usernmae ，然后请求群成员接口，然后更新群成员信息
+				}
 			}
+			model.UpsertContact(&modContac)
 		}
-
 	}
 	if len(SyncMessage.AddMsgList) > 0 {
 		for _, msg := range SyncMessage.AddMsgList {
-			handleMessage(msg)
+			user.handleMessage(msg)
+		}
+	}
+	if len(SyncMessage.DelContactList) > 0 {
+		for _, modContac := range SyncMessage.DelContactList {
+			// 删除好友
+			fmt.Println("删除好友：" + modContac.UserName)
 		}
 	}
 }
@@ -178,8 +216,10 @@ func handleSync(SyncMessage SyncStruct) {
 // 处理消息类型
 // AppMsgType app分享
 // FromUserName 两个@@ 就是群消息
-func handleMessage(Msg types.Message) {
+func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 	Msg.Content = FormatContent(Msg.Content)
+
+	Contact := model.GetContactByUsername(Msg.FromUserName)
 
 	log.Println("[" + Msg.ToUserName + "] 有来自[" + Msg.FromUserName + "]消息：[" + strconv.Itoa(Msg.MsgType) + "] " + Msg.Content)
 	switch Msg.MsgType {
@@ -189,27 +229,93 @@ func handleMessage(Msg types.Message) {
 			// 地理位置消息
 			str := strings.Split(Msg.Content, ":\n")
 			Msg.Content = str[0]
-			fmt.Println(Msg.Content)
-			fmt.Println(Msg.Url)
+			//TODO::XML 在 `OriContent` 中
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        Location,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      ParseXml(Msg.OriContent, "location"),
+				Url:          Msg.Url,
+				SendTime:     Msg.CreateTime,
+			}
+			log.Println(msg)
+			return
+			//return msg
 		}
 		//TODO::如果FromUserName 存在于联系人，且
-		if strings.Contains(Msg.Content, "过了你的朋友验证请求") && Msg.FromUserName == "" {
+		if strings.Contains(Msg.Content, "过了你的朋友验证请求") && Contact.Id.Valid() {
 			// 通过好友验证消息
 			// 上面先处理的联系人变更， 所以，只要FromeUserName 能搜索到且搜到到字符就是新好友
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        ReceiveAddFriendResult,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      Msg.Content,
+				SendTime:     Msg.CreateTime,
+			}
+			log.Println(msg)
+			return
 		}
 
 		// 文本消息
-		fmt.Println(FormatContent(Msg.Content))
-
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ReceiveTextMessage,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      Msg.Content,
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		//return msg
 	case 3:
-		// 图片消息
+
+		// 语音消息
 		img := map[string]string{}
 		img = ParseXml(Msg.Content, "img")
-		fmt.Println(img)
+		md5 := img["md5"]
 
+		// 下载文件
+		// TODO::先检查文件是否已存在
+		NewHttp(user.uuid).DownImgMsg(user, Msg.MsgId, md5+".jpg")
+
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ReceiveImageMessage,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      img,
+			Url:          "./tmp/msg/img/" + md5 + ".jpg",
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		return
 	case 34:
-		// 语音消息
+		// 图片消息
+		voicemsg := map[string]string{}
+		voicemsg = ParseXml(Msg.Content, "voicemsg")
 
+		// 下载文件
+		NewHttp(user.uuid).DownVoiceMsg(user, Msg.MsgId, Msg.MsgId+".mp3")
+
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ReceiveImageMessage,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      voicemsg,
+			Url:          "./tmp/msg/voice/" + Msg.MsgId + ".jpg",
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		return
 	case 37:
 		// 好友验证
 		// 提取好友头像
@@ -235,11 +341,12 @@ func handleMessage(Msg types.Message) {
 		if Msg.Content == "该类型暂不支持，请在手机上查看" {
 			return
 		}
-		// 分享的网页 ,解析xml ， type 6 文件； 33 小程序； 查询公众号FormUserName，如果在公众号，就是公众号，否则就是网页
+		// 分享的网页 ,解析xml ， type 6 文件；8 动图； 33 小程序； 查询公众号FormUserName，如果在公众号，就是公众号，否则就是网页
+		//<msg><appmsg appid="" sdkver="0"><type>17</type><title><![CDATA[我发起了位置共享]]></title></appmsg><fromusername>dingxiaoyu_ddy</fromusername></msg>
 
 	case 51:
 		if Msg.ToUserName == Msg.StatusNotifyUserName {
-			// 点击事件（好友正在输入）
+			// 点击事件（好友正在输入） 打开聊天框
 		}
 	case 53:
 		// 视频电话
@@ -256,13 +363,16 @@ func handleMessage(Msg types.Message) {
 	case 10000:
 		if strings.Contains(Msg.Content, "利是") || strings.Contains(Msg.Content, "红包") {
 			// 红包消息
-		}
-		if strings.Contains(Msg.Content, "添加") || strings.Contains(Msg.Content, "打招呼") {
+		} else if strings.Contains(Msg.Content, "添加") || strings.Contains(Msg.Content, "打招呼") {
 			// 好友申请，打招呼
+		} else if strings.Contains(Msg.Content, "添加") || strings.Contains(Msg.Content, "聊天") {
+			// 添加好友之间被通过，删除后重新添加
+		} else if strings.Contains(Msg.Content, "加入了群聊") || strings.Contains(Msg.Content, "移出了群聊") || strings.Contains(Msg.Content, "改群名为") || strings.Contains(Msg.Content, "邀请你") || strings.Contains(Msg.Content, "分享的二维码加入群聊") {
+			// 群成员改变，添加或移除
+			GroupChange(Msg)
 		}
-		// 群成员改变，添加或移除
-		GroupChange(Msg)
 
+		// 位置共享结束
 	}
 }
 
@@ -338,4 +448,17 @@ func EmojiHandle(content string) string {
 		content = strings.Replace(content, src[k], emjo, -1)
 	}
 	return content
+}
+
+type Message struct {
+	MsgId         string `json:"msgid"`
+	Event         string
+	FromUserName  string
+	FromNickName  string
+	ToUserName    string
+	GroupUserName string
+	GroupNickName string
+	Content       interface{}
+	Url           string `json:"url,omitempty"`
+	SendTime      int
 }

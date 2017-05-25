@@ -25,7 +25,9 @@ var baseUri = ""
 
 const WX_STATUE_INIT = "initialize"
 const WX_STATUE_TIME_OUT = "time_out"
-const WX_STATUE_SCANING = "scanning"
+
+const WX_STATUE_SCANEND = "scanend"
+const WX_STATUE_SCANE_PASS = "scane_pass"
 
 const WX_STATUE_INIT_SELF = "init_self"
 const WX_STATUE_INIT_CONTACT = "init_contact"
@@ -93,6 +95,7 @@ type WxLoginStatus struct {
 	SyncOff bool
 
 	Statue string
+	Avater string
 }
 
 //wxinit 时需要提交的数据json格式
@@ -178,11 +181,10 @@ func waitForLogin(uuid string) {
 		case "201":
 			log.Println("[" + uuid + "] 开始登陆，等待通过认证申请")
 			avater := utils.PregMatch(`window.userAvatar = '(\S+?)';`, content)
-			if len(avater) > 1 {
-				fmt.Println(avater[0])
-			} else {
-				fmt.Println(content)
+			if len(avater) > 0 {
+				model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_SCANEND, HeadBase: avater[0]})
 			}
+			model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_SCANEND})
 
 			tip = 0
 		case "200":
@@ -225,7 +227,7 @@ func waitForLogin(uuid string) {
 				}
 			}
 			// 设置用户状态
-			model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_SCANING})
+			model.UpsertUUID(model.UUIDDBT{UUID: uuid, Status: WX_STATUE_SCANE_PASS})
 
 			WxMapLock.Lock()
 			//fmt.Println(WxMap[uuid])
@@ -261,6 +263,9 @@ func startLogin(uuid string, redirectUri string) loginXml {
 
 // 获取个人信息及最近聊天
 func (user *WxLoginStatus) webwxinit() {
+
+	user.statusNotify()
+
 	url := fmt.Sprintf(user.baseUri+"/webwxinit?r=%d&lang=zh_CN&pass_ticket=%s", strconv.FormatInt(time.Now().Unix(), 10), user.passTicket)
 
 	//

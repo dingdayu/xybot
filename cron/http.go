@@ -100,12 +100,14 @@ func (h *Http) Get(url string, params map[string]string) string {
 	resp, err := h.Client.Get(url)
 	if err != nil {
 		// handle error
+		return ""
 	}
-
 	defer resp.Body.Close()
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// handle error
+		return ""
 	}
 	return string(body)
 }
@@ -327,7 +329,7 @@ func getFileType(file string) string {
 
 // 下载图片，表情到本地
 // 表情同样走这个接口
-func (h *Http) DownMsgImg(user *WxLoginStatus, msgid string, file string) {
+func (h *Http) DownImgMsg(user *WxLoginStatus, msgid string, file string) {
 	uri := fmt.Sprintf(user.baseUri+"/webwxgetmsgimg?MsgID=%s&skey=%s", msgid, user.BaseRequest.Skey)
 	res, err := h.Client.Get(uri)
 	defer res.Body.Close()
@@ -336,17 +338,18 @@ func (h *Http) DownMsgImg(user *WxLoginStatus, msgid string, file string) {
 		return
 	}
 	//TODO::保存
-	if !utils.IsDirExist(file) {
-		os.MkdirAll(file, 0755)
+	path := "./tmp/msg/img/"
+	if !utils.IsDirExist(path) {
+		os.MkdirAll(path, 0755)
 		fmt.Printf("dir %s created\n", file)
 	}
 	//根据URL文件名创建文件
 	resp_body, err := ioutil.ReadAll(res.Body)
-	ioutil.WriteFile(file, resp_body, os.ModePerm)
+	ioutil.WriteFile(path+file, resp_body, os.ModePerm)
 }
 
 // 下载语音消息
-func (h *Http) DownVoiceImg(user *WxLoginStatus, msgid string, file string) {
+func (h *Http) DownVoiceMsg(user *WxLoginStatus, msgid string, file string) {
 	uri := fmt.Sprintf(user.baseUri+"/webwxgetvoice?msgid=%s&skey=%s", msgid, user.BaseRequest.Skey)
 	res, err := h.Client.Get(uri)
 	defer res.Body.Close()
@@ -355,17 +358,18 @@ func (h *Http) DownVoiceImg(user *WxLoginStatus, msgid string, file string) {
 		return
 	}
 	//TODO::保存
-	if !utils.IsDirExist(file) {
-		os.MkdirAll(file, 0755)
+	path := "./tmp/msg/voice/"
+	if !utils.IsDirExist(path) {
+		os.MkdirAll(path, 0755)
 		fmt.Printf("dir %s created\n", file)
 	}
 	//根据URL文件名创建文件
 	resp_body, err := ioutil.ReadAll(res.Body)
-	ioutil.WriteFile(file, resp_body, os.ModePerm)
+	ioutil.WriteFile(path+file, resp_body, os.ModePerm)
 }
 
 // 下载语音消息
-func (h *Http) DownVideoImg(user *WxLoginStatus, msgid string, file string) {
+func (h *Http) DownVideoMsg(user *WxLoginStatus, msgid string, file string) {
 	uri := fmt.Sprintf(user.baseUri+"/webwxgetvideo?MsgID=%s&skey=%s", msgid, user.BaseRequest.Skey)
 
 	res, err := h.Client.Get(uri)
@@ -393,7 +397,7 @@ func (h *Http) DownVideoImg(user *WxLoginStatus, msgid string, file string) {
 }
 
 // 下载文档保存到本地
-func (h *Http) DownMsgFile(user *WxLoginStatus, msgid string, formUserName string, fileName string, file string) {
+func (h *Http) DownFileMsg(user *WxLoginStatus, msgid string, formUserName string, fileName string, file string) {
 
 	baseUri := user.baseUri + "/webwxgetmedia?"
 	ticket, _ := h.GetTicket(user.baseUri)

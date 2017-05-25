@@ -96,6 +96,7 @@ func GetStatus(w http.ResponseWriter, r *http.Request) {
 		if u.Id.Valid() {
 			data := map[string]string{}
 			data["status"] = u.Status
+			data["avater"] = u.HeadBase
 			ret = RetT{Code: 200, Msg: "success", Data: data}
 		} else {
 			ret = RetT{Code: 401, Msg: "uuid errror"}

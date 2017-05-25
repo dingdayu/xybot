@@ -105,6 +105,15 @@ func GetContactById(id string) *Contact {
 	return person
 }
 
+func GetContactByUsername(username string) *Contact {
+	person := new(Contact)
+	query := func(c *mgo.Collection) error {
+		return c.Find(bson.M{"username": username}).One(&person)
+	}
+	witchCollection(CONTACT_COLLECTION_NAME, query)
+	return person
+}
+
 //获取所有的person数据
 func PageContact() []Contact {
 	var persons []Contact
@@ -160,4 +169,15 @@ func UpdateContact(query bson.M, change bson.M) bool {
 		return true
 	}
 	return false
+}
+
+func GetContactArea(where []bson.M) []interface{} {
+	var values []interface{}
+	query := func(c *mgo.Collection) error {
+		var err error
+		err = c.Pipe(where).All(&values)
+		return err
+	}
+	witchCollection(CONTACT_COLLECTION_NAME, query)
+	return values
 }

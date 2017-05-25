@@ -20,6 +20,7 @@ type UUIDDBT struct {
 	UserName   string `bson:"username,omitempty"`
 	NickName   string `bson:"nickname,omitempty"`
 	HeadImgUrl string `bson:"head_img_url,omitempty"`
+	HeadBase   string `bson:"head_base,omitempty"`
 	Status     string `bson:"status,omitempty"`
 }
 
