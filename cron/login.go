@@ -155,7 +155,8 @@ func GetUuid() (string, error) {
 func generateQrCode(uuid string) {
 	// 'https://login.weixin.qq.com/l/' . $this->uuid
 	url := "https://login.weixin.qq.com/qrcode/" + uuid
-	NewHttp("").SaveImage(url, uuid)
+	file := "./tmp/logon/qr/" + uuid + ".png"
+	NewHttp(uuid).DownFile(url, file)
 }
 
 // 携程调用某账号的登陆检查

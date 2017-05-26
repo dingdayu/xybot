@@ -2,18 +2,26 @@ package main
 
 import (
 	"expvar"
-	_ "expvar"
 	"fmt"
-	"github.com/dingdayu/wxbot/handlers/api"
-	"github.com/dingdayu/wxbot/handlers/web"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime/debug"
+	"github.com/dingdayu/wxbot/handlers/web"
+	"github.com/dingdayu/wxbot/handlers/api"
 )
+
+const HTTP_IP_PORT = ":8080"
 
 func main() {
 	//cron.Test()
+
+	//m := []bson.M{
+	//	{"$match": bson.M{"uuid" : "watgL2sJyw=="}},
+	//	{"$group": bson.M{"_id": "$province", "count": bson.M{"$sum": 1}}},
+	//}
+	//provinc := model.GetContactArea(m)
+	//fmt.Println(provinc)
 
 	httpGet()
 }
@@ -29,16 +37,16 @@ func httpGet() {
 	http.HandleFunc("/api/user/status", safeWebHandler(api.GetStatus))
 	http.HandleFunc("/api/user/all", safeWebHandler(api.GetAllStatus))
 
-	http.HandleFunc("/api/file/update", safeWebHandler(api.UploadHandle))
+	http.HandleFunc("/api/uuid/contact/provinc/list", safeWebHandler(api.GetUuidArea))
 
-	//models.GetUser()
-	//utils.Browser("http://127.0.0.1:8080");
 	// 监听端口 8080
-	err := http.ListenAndServe(":8080", nil)
+	fmt.Println("	启动成功！")
+	fmt.Println("http://" + HTTP_IP_PORT)
+	fmt.Println("------------------------")
+	err := http.ListenAndServe(HTTP_IP_PORT, nil)
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 // 服务器内部错误拦截

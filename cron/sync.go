@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	//// 申请加为好友
-	//RequestFriend  = "RequestFriend"
+	// 申请加为好友
+	RequestFriend = "RequestFriend"
 	//// 申请好友通过
 	ReceiveAddFriendResult = "ReceiveAddFriendResult"
 	//// 位置分享
@@ -36,6 +36,19 @@ const (
 	//MemberExitCluster  = "MemberExitCluster"
 	//// 收到有人被踢出群
 	//MemberKickCluste  = "MemberKickCluste"
+
+	// 共享名片
+	ShareCard = "ShareCard"
+	// 分享的网页
+	ShareWebPage = "ShareWebPage"
+	// 分享小程序
+	ShareApplet = "ShareApplet"
+	// 转账
+	Transfer = "Transfer"
+	// 红包
+	RedPackets = "RedPackets"
+	// 撤回消息
+	ReceiveMessageRevoke = "ReceiveMessageRevoke"
 
 	ReceiveTextMessage  = "ReceiveTextMessage"
 	ReceiveImageMessage = "ReceiveImageMessage"
@@ -275,14 +288,16 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		//return msg
 	case 3:
 
-		// 语音消息
-		img := map[string]string{}
-		img = ParseXml(Msg.Content, "img")
+		// 图片消息
+		img := ParseXml(Msg.Content, "img")
 		md5 := img["md5"]
 
 		// 下载文件
 		// TODO::先检查文件是否已存在
-		NewHttp(user.uuid).DownImgMsg(user, Msg.MsgId, md5+".jpg")
+		file := "./tmp/msg/img/" + md5 + ".jpg"
+		if utils.IsDirExist(file) {
+			NewHttp(user.uuid).DownImgMsg(user, Msg.MsgId, file)
+		}
 
 		msg := Message{
 			MsgId:        Msg.MsgId,
@@ -297,9 +312,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		log.Println(msg)
 		return
 	case 34:
-		// 图片消息
-		voicemsg := map[string]string{}
-		voicemsg = ParseXml(Msg.Content, "voicemsg")
+		// 语音消息
+		voicemsg := ParseXml(Msg.Content, "voicemsg")
 
 		// 下载文件
 		NewHttp(user.uuid).DownVoiceMsg(user, Msg.MsgId, Msg.MsgId+".mp3")
@@ -318,29 +332,163 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		return
 	case 37:
 		// 好友验证
-		// 提取好友头像
-		matches := utils.PregMatch(`bigheadimgurl="(.+?)"`, Msg.Content)
-		avatar := matches[1]
-		Msg.RecommendInfo.NickName = FormatContent(Msg.RecommendInfo.NickName)
-		fmt.Println(avatar)
-		fmt.Println(Msg.RecommendInfo)
+		RequestMsg := ParseXml(Msg.Content, "msg")
+
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        RequestFriend,
+			FromUserName: Msg.RecommendInfo.UserName,
+			FromNickName: Msg.RecommendInfo.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      RequestMsg,
+			Url:          "./tmp/msg/voice/" + Msg.MsgId + ".jpg",
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		return
 	case 42:
 		// 共享名片
-		fmt.Println(Msg)
+		RequestMsg := ParseXml(Msg.Content, "msg")
 
+		RequestMsg["UserName"] = Msg.RecommendInfo.UserName
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ShareCard,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      RequestMsg,
+			Url:          "./tmp/msg/voice/" + Msg.MsgId + ".jpg",
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		return
 	case 43:
 		// 视频消息
+
+		videomsg := ParseXml(Msg.Content, "videomsg")
+		md5 := videomsg["md5"]
+
+		// 下载文件
+		// TODO::先检查文件是否已存在
+		file := "./tmp/msg/video/" + md5 + ".jpg"
+		if utils.IsDirExist(file) {
+			NewHttp(user.uuid).DownImgMsg(user, Msg.MsgId, file)
+		}
+
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ReceiveVideoMessage,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      videomsg,
+			Url:          file,
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		return
 	case 47:
 		// 动画表情
-		// TODO:: 1、下载表情 msgid.gif
+		// TODO:: 1、下载表情 msgid.gif  表情事件
+		// 下载文件
+
+		file := ""
+		if Msg.Content == "" {
+			file = "./tmp/msg/biaoqing/" + Msg.MsgId + ".jpg"
+		} else {
+			emoji := ParseXml(Msg.Content, "emoji")
+			md5 := emoji["md5"]
+			file = "./tmp/msg/emoji/" + md5 + ".jpg"
+		}
+
+		if utils.IsDirExist(file) {
+			NewHttp(user.uuid).DownImgMsg(user, Msg.MsgId, file)
+		}
+
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ReceiveVideoMessage,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      "",
+			Url:          file,
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
 	case 49:
+
+		appmsg := ParseXml(Msg.Content, "appmsg")
 
 		if Msg.Status == 3 && Msg.FileName == "微信转账" {
 			// 微信转帐
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        Transfer,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      appmsg,
+				SendTime:     Msg.CreateTime,
+			}
+			log.Println(msg)
+			return
 		}
 		if Msg.Content == "该类型暂不支持，请在手机上查看" {
 			return
 		}
+
+		if appmsg["type"] == "5" {
+			// 分享的网页
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        ShareWebPage,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      appmsg,
+				SendTime:     Msg.CreateTime,
+			}
+			log.Println(msg)
+			return
+		}
+
+		if appmsg["type"] == "6" {
+			// 分享的文件
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        ShareWebPage,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      appmsg,
+				SendTime:     Msg.CreateTime,
+			}
+
+			// todo::下载文件  md5 去重
+
+			log.Println(msg)
+			return
+		}
+		if appmsg["type"] == "33" {
+			// 分享的小程序
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        ShareApplet,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      appmsg,
+				SendTime:     Msg.CreateTime,
+			}
+
+			// todo::下载文件  md5 去重
+
+			log.Println(msg)
+			return
+		}
+
 		// 分享的网页 ,解析xml ， type 6 文件；8 动图； 33 小程序； 查询公众号FormUserName，如果在公众号，就是公众号，否则就是网页
 		//<msg><appmsg appid="" sdkver="0"><type>17</type><title><![CDATA[我发起了位置共享]]></title></appmsg><fromusername>dingxiaoyu_ddy</fromusername></msg>
 
@@ -356,16 +504,37 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 	case 10002:
 		// 撤回消息
-		msgID := utils.PregMatch(`<msgid>(\d+)<\/msgid>`, Msg.Content)
-		fmt.Println(msgID)
-		// 通过msgID获取上一条消息
+		sysmsg := ParseXml(Msg.Content, "sysmsg")
+		msg := Message{
+			MsgId:        Msg.MsgId,
+			Event:        ReceiveMessageRevoke,
+			FromUserName: Msg.FromUserName,
+			FromNickName: Contact.NickName,
+			ToUserName:   Msg.ToUserName,
+			Content:      sysmsg,
+			SendTime:     Msg.CreateTime,
+		}
+		log.Println(msg)
+		return
 
 	case 10000:
 		if strings.Contains(Msg.Content, "利是") || strings.Contains(Msg.Content, "红包") {
 			// 红包消息
-		} else if strings.Contains(Msg.Content, "添加") || strings.Contains(Msg.Content, "打招呼") {
-			// 好友申请，打招呼
-		} else if strings.Contains(Msg.Content, "添加") || strings.Contains(Msg.Content, "聊天") {
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				Event:        RedPackets,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      Msg.Content,
+				SendTime:     Msg.CreateTime,
+			}
+			log.Println(msg)
+			return
+		} else if strings.Contains(Msg.Content, "添加") && strings.Contains(Msg.Content, "打招呼") {
+			// 通过好友申请，打招呼
+			// todo::你已添加了小雨，现在可以开始聊天了。
+		} else if strings.Contains(Msg.Content, "添加") && strings.Contains(Msg.Content, "聊天") {
 			// 添加好友之间被通过，删除后重新添加
 		} else if strings.Contains(Msg.Content, "加入了群聊") || strings.Contains(Msg.Content, "移出了群聊") || strings.Contains(Msg.Content, "改群名为") || strings.Contains(Msg.Content, "邀请你") || strings.Contains(Msg.Content, "分享的二维码加入群聊") {
 			// 群成员改变，添加或移除

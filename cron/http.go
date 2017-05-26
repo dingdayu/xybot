@@ -331,41 +331,13 @@ func getFileType(file string) string {
 // 表情同样走这个接口
 func (h *Http) DownImgMsg(user *WxLoginStatus, msgid string, file string) {
 	uri := fmt.Sprintf(user.baseUri+"/webwxgetmsgimg?MsgID=%s&skey=%s", msgid, user.BaseRequest.Skey)
-	res, err := h.Client.Get(uri)
-	defer res.Body.Close()
-	if err != nil {
-		fmt.Printf("%d HTTP ERROR:%s", uri, err)
-		return
-	}
-	//TODO::保存
-	path := "./tmp/msg/img/"
-	if !utils.IsDirExist(path) {
-		os.MkdirAll(path, 0755)
-		fmt.Printf("dir %s created\n", file)
-	}
-	//根据URL文件名创建文件
-	resp_body, err := ioutil.ReadAll(res.Body)
-	ioutil.WriteFile(path+file, resp_body, os.ModePerm)
+	h.DownFile(uri, file)
 }
 
 // 下载语音消息
 func (h *Http) DownVoiceMsg(user *WxLoginStatus, msgid string, file string) {
 	uri := fmt.Sprintf(user.baseUri+"/webwxgetvoice?msgid=%s&skey=%s", msgid, user.BaseRequest.Skey)
-	res, err := h.Client.Get(uri)
-	defer res.Body.Close()
-	if err != nil {
-		fmt.Printf("%d HTTP ERROR:%s", uri, err)
-		return
-	}
-	//TODO::保存
-	path := "./tmp/msg/voice/"
-	if !utils.IsDirExist(path) {
-		os.MkdirAll(path, 0755)
-		fmt.Printf("dir %s created\n", file)
-	}
-	//根据URL文件名创建文件
-	resp_body, err := ioutil.ReadAll(res.Body)
-	ioutil.WriteFile(path+file, resp_body, os.ModePerm)
+	h.DownFile(uri, file)
 }
 
 // 下载语音消息
@@ -405,31 +377,21 @@ func (h *Http) DownFileMsg(user *WxLoginStatus, msgid string, formUserName strin
 		formUserName, msgid, fileName, user.LoginUser.UserName, user.passTicket, ticket)
 	uri = baseUri + uri
 
-	res, err := h.Client.Get(uri)
-	defer res.Body.Close()
-	if err != nil {
-		fmt.Printf("%d HTTP ERROR:%s", uri, err)
-		return
-	}
-	//根据URL文件名创建文件
-	resp_body, err := ioutil.ReadAll(res.Body)
-	ioutil.WriteFile(file, resp_body, os.ModePerm)
+	h.DownFile(uri, file)
 }
 
-func (h *Http) SaveImage(url string, file string) {
+func (h *Http) DownFile(url string, file string) {
 	res, err := h.Client.Get(url)
 	defer res.Body.Close()
 	if err != nil {
 		fmt.Printf("%d HTTP ERROR:%s", url, err)
 		return
 	}
-	//按分辨率目录保存图片
-	Dirname := "tmp/"
-	if !utils.IsDirExist(Dirname) {
-		os.MkdirAll(Dirname, 0755)
-		fmt.Printf("dir %s created\n", Dirname)
+	if !utils.IsDirExist(path.Dir(file)) {
+		os.MkdirAll(path.Dir(file), 0755)
+		fmt.Printf("dir %s created\n", file)
 	}
-	resp_body, err := ioutil.ReadAll(res.Body)
 	//根据URL文件名创建文件
+	resp_body, err := ioutil.ReadAll(res.Body)
 	ioutil.WriteFile(file, resp_body, os.ModePerm)
 }
