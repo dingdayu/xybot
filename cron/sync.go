@@ -54,8 +54,10 @@ const (
 	ReceiveImageMessage = "ReceiveImageMessage"
 	ReceiveVoiceMessage = "ReceiveVoiceMessage"
 	ReceiveVideoMessage = "ReceiveVideoMessage"
+
+	// 输入状态
+	ReceiveInputState = "ReceiveInputState"
 	// TODO:: ReceiveSignatureChanged 修改签名
-	// TODO:: ReceiveInputState 输入状态
 	// TODO::  位置共享
 	// TODO::  停止位置共享
 )
@@ -234,6 +236,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 	Contact := model.GetContactByUsername(Msg.FromUserName)
 
+
 	log.Println("[" + Msg.ToUserName + "] 有来自[" + Msg.FromUserName + "]消息：[" + strconv.Itoa(Msg.MsgType) + "] " + Msg.Content)
 	switch Msg.MsgType {
 	case 1:
@@ -245,6 +248,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			//TODO::XML 在 `OriContent` 中
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        Location,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -253,6 +257,9 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Url:          Msg.Url,
 				SendTime:     Msg.CreateTime,
 			}
+			// 检查
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
 			log.Println(msg)
 			return
 			//return msg
@@ -263,6 +270,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 上面先处理的联系人变更， 所以，只要FromeUserName 能搜索到且搜到到字符就是新好友
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        ReceiveAddFriendResult,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -270,6 +278,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Content:      Msg.Content,
 				SendTime:     Msg.CreateTime,
 			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
 			log.Println(msg)
 			return
 		}
@@ -277,6 +286,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		// 文本消息
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ReceiveTextMessage,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -284,6 +294,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Content:      Msg.Content,
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
 		log.Println(msg)
 		//return msg
 	case 3:
@@ -301,6 +312,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ReceiveImageMessage,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -309,6 +321,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Url:          "./tmp/msg/img/" + md5 + ".jpg",
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
+
 		log.Println(msg)
 		return
 	case 34:
@@ -320,6 +334,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ReceiveImageMessage,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -336,6 +351,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        RequestFriend,
 			FromUserName: Msg.RecommendInfo.UserName,
 			FromNickName: Msg.RecommendInfo.NickName,
@@ -344,6 +360,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Url:          "./tmp/msg/voice/" + Msg.MsgId + ".jpg",
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
+
 		log.Println(msg)
 		return
 	case 42:
@@ -353,6 +371,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		RequestMsg["UserName"] = Msg.RecommendInfo.UserName
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ShareCard,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -361,6 +380,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Url:          "./tmp/msg/voice/" + Msg.MsgId + ".jpg",
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
+
 		log.Println(msg)
 		return
 	case 43:
@@ -378,6 +399,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ReceiveVideoMessage,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -386,6 +408,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Url:          file,
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
+
 		log.Println(msg)
 		return
 	case 47:
@@ -408,6 +432,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ReceiveVideoMessage,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -416,6 +441,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Url:          file,
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
+
 		log.Println(msg)
 	case 49:
 
@@ -425,6 +452,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 微信转帐
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        Transfer,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -432,6 +460,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Content:      appmsg,
 				SendTime:     Msg.CreateTime,
 			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
 			log.Println(msg)
 			return
 		}
@@ -443,6 +473,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 分享的网页
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        ShareWebPage,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -450,6 +481,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Content:      appmsg,
 				SendTime:     Msg.CreateTime,
 			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
 			log.Println(msg)
 			return
 		}
@@ -458,6 +491,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 分享的文件
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        ShareWebPage,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -465,6 +499,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Content:      appmsg,
 				SendTime:     Msg.CreateTime,
 			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
 
 			// todo::下载文件  md5 去重
 
@@ -475,6 +511,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 分享的小程序
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        ShareApplet,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -482,8 +519,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Content:      appmsg,
 				SendTime:     Msg.CreateTime,
 			}
-
-			// todo::下载文件  md5 去重
+			checkGroupMsg(&msg, user.LoginUser.UserName)
 
 			log.Println(msg)
 			return
@@ -495,6 +531,20 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 	case 51:
 		if Msg.ToUserName == Msg.StatusNotifyUserName {
 			// 点击事件（好友正在输入） 打开聊天框
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
+				Event:        ReceiveInputState,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      "",
+				SendTime:     Msg.CreateTime,
+			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
+			log.Println(msg)
+			return
 		}
 	case 53:
 		// 视频电话
@@ -507,6 +557,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		sysmsg := ParseXml(Msg.Content, "sysmsg")
 		msg := Message{
 			MsgId:        Msg.MsgId,
+			UUID:         user.uuid,
 			Event:        ReceiveMessageRevoke,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
@@ -514,6 +565,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			Content:      sysmsg,
 			SendTime:     Msg.CreateTime,
 		}
+		checkGroupMsg(&msg, user.LoginUser.UserName)
+
 		log.Println(msg)
 		return
 
@@ -522,6 +575,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 红包消息
 			msg := Message{
 				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
 				Event:        RedPackets,
 				FromUserName: Msg.FromUserName,
 				FromNickName: Contact.NickName,
@@ -529,6 +583,8 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				Content:      Msg.Content,
 				SendTime:     Msg.CreateTime,
 			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
 			log.Println(msg)
 			return
 		} else if strings.Contains(Msg.Content, "添加") && strings.Contains(Msg.Content, "打招呼") {
@@ -545,22 +601,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 	}
 }
 
-/**
-
-@da0e51d64fca0a686c08ee57a6d87e364c3a7506da8a7c2c128c4dd421e23f7d:
-<br><msg><appmsg appid="" sdkver=""><title>å¾·å›½åŒåˆ©å•åˆ€ç™»é™†ä¸­å›½ï¼Œå°†åŽŸç”¨äºŽä¸­å›½åŒºçš„1äº¿å®£ä¼ å¹¿å‘Šè´¹ç›´æŽ¥åšæˆå®¢æˆ·å…è´¹ä½“éªŒã€‚</title><des>http://test.ebeq.net/index.php?m=home&amp;c=goods&amp;a=index&amp;gid=3&amp;uid=10303</des><action>view</action><type>5</type><showtype>0</showtype><content></content><url>http://test.ebeq.net/index.php?m=home&amp;c=goods&amp;a=index&amp;gid=3&amp;uid=10303</url><dataurl></dataurl><lowurl></lowurl><lowdataurl></lowdataurl><recorditem><![CDATA[]]></recorditem><thumburl>http://wx.qlogo.cn/mmopen/2jxblmcQQWyRfGrDib2G5ePlf8KVfj4R4ChTKcfHbaj9WWS2tsJqJpSQKGhpTtySMFrPCiaIrROMQrHD2LrqyFt4pmPRLiaQ07a/0</thumburl><extinfo></extinfo><sourceusername></sourceusername><sourcedisplayname></sourcedisplayname><commenturl></commenturl><appattach><totallen>0</totallen><attachid></attachid><emoticonmd5></emoticonmd5><fileext></fileext></appattach></appmsg><fromusername>wxid_ss7bwx1wixe722</fromusername><scene>0</scene><appinfo><version>1</version><appname></appname></appinfo><commenturl></commenturl></msg>
-<br>
-
-@da0e51d64fca0a686c08ee57a6d87e364c3a7506da8a7c2c128c4dd421e23f7d:
-<br>wxid_ss7bwx1wixe722:
-<br><?xml version="1.0"?>
-<br><msg>
-<br>    <videomsg aeskey="39376464363533356333376431333537" cdnthumbaeskey="39376464363533356333376431333537" cdnvideourl="304c0201000445304302010002042a31c66f02033d14b9020497e503b7020458f7f2440421777869645f656d61616463787a72726b7132323330355f313439323634343431380201000201000400" cdnthumburl="304c0201000445304302010002042a31c66f02033d14b9020497e503b7020458f7f2440421777869645f656d61616463787a72726b7132323330355f313439323634343431380201000201000400" length="7030184" playlength="103" cdnthumblength="6287" cdnthumbwidth="0" cdnthumbheight="0" fromusername="wxid_ss7bwx1wixe722" md5="0bbabb5d333fee84695d8087b1fe0553" newmd5="" isad="0" />
-<br></msg>
-<br>
-
-*/
-
+// 解析xml
 func ParseXml(input string, name string) map[string]string {
 	input, _ = FormatXml(input)
 	rte, _ := simplexml.NewDocumentFromReader(strings.NewReader(input))
@@ -621,6 +662,7 @@ func EmojiHandle(content string) string {
 
 type Message struct {
 	MsgId         string `json:"msgid"`
+	UUID	      string
 	Event         string
 	FromUserName  string
 	FromNickName  string
@@ -630,4 +672,14 @@ type Message struct {
 	Content       interface{}
 	Url           string `json:"url,omitempty"`
 	SendTime      int
+}
+
+// 检查是否群消息，并补充群信息
+func checkGroupMsg(msg *Message, toUserName string)  {
+	if strings.Contains(msg.ToUserName, "@@") {
+		group := model.GetContactByUsername(msg.ToUserName)
+		msg.GroupUserName = msg.ToUserName
+		msg.GroupNickName = group.NickName
+		msg.ToUserName = toUserName
+	}
 }

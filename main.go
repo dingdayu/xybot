@@ -3,12 +3,12 @@ package main
 import (
 	"expvar"
 	"fmt"
+	"github.com/dingdayu/wxbot/handlers/api"
+	"github.com/dingdayu/wxbot/handlers/web"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime/debug"
-	"github.com/dingdayu/wxbot/handlers/web"
-	"github.com/dingdayu/wxbot/handlers/api"
 )
 
 const HTTP_IP_PORT = ":8080"

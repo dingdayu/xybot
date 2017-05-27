@@ -52,6 +52,9 @@ type Message struct {
 	ToUserName           string
 	Url                  string
 	VoiceLength          int
+
+	GroupUserName string
+	GroupNickName string
 }
 
 type BatchGetContact struct {
