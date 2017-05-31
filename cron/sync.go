@@ -31,19 +31,16 @@ const (
 	//// 新成员入群
 	//NewMemberJoinCluster  = "NewMemberJoinCluster"
 
-
-
-
 	// 修改群名称
 	EditGroupName = "EditGroupName"
 	// 新成员入群
-	NewMemberJoinGroup  = "NewMemberJoinGroup"
+	NewMemberJoinGroup = "NewMemberJoinGroup"
 	// 收到有人被踢出群
-	MemberKickGroup  = "MemberKickGroup"
+	MemberKickGroup = "MemberKickGroup"
 	// 收到有人退出群
-	MemberExitGroup  = "MemberExitGroup"
+	MemberExitGroup = "MemberExitGroup"
 	// 加入新群
-	MeJoinGroup  = "MeJoinGroup"
+	MeJoinGroup = "MeJoinGroup"
 
 	// 共享名片
 	ShareCard = "ShareCard"
@@ -604,16 +601,16 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 				// INVITE 邀请你加入新群
 				group := model.GetContactByUsername(Msg.FromUserName)
 				msg := Message{
-					MsgId:        Msg.MsgId,
-					UUID:         user.uuid,
-					Event:        MeJoinGroup,
-					FromUserName: "system",
-					FromNickName: "system",
+					MsgId:         Msg.MsgId,
+					UUID:          user.uuid,
+					Event:         MeJoinGroup,
+					FromUserName:  "system",
+					FromNickName:  "system",
 					GroupNickName: group.NickName,
 					GroupUserName: group.UserName,
-					ToUserName:   Msg.ToUserName,
-					Content:      Msg.Content,
-					SendTime:     Msg.CreateTime,
+					ToUserName:    Msg.ToUserName,
+					Content:       Msg.Content,
+					SendTime:      Msg.CreateTime,
 				}
 
 				log.Println(msg)
@@ -638,7 +635,6 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 				log.Println(msg)
 				return
-
 
 				fmt.Println(name)
 			}

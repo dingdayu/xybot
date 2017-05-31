@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
-	"strings"
-	"os/user"
 	"log"
+	"os/user"
+	"strings"
 )
 
 func GroupChange(Msg types.Message) Message {
