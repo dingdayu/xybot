@@ -5,12 +5,27 @@ import (
 	"github.com/dingdayu/wxbot/types"
 	"github.com/dingdayu/wxbot/utils"
 	"strings"
+	"os/user"
+	"log"
 )
 
-func GroupChange(Msg types.Message) {
+func GroupChange(Msg types.Message) Message {
 	if strings.Contains(Msg.Content, "加入了群聊") || strings.Contains(Msg.Content, "移出了群聊") {
 		if strings.Contains(Msg.Content, "邀请你") {
 			// INVITE 邀请你加入新群
+			msg := Message{
+				MsgId:        Msg.MsgId,
+				UUID:         user.uuid,
+				Event:        RedPackets,
+				FromUserName: Msg.FromUserName,
+				FromNickName: Contact.NickName,
+				ToUserName:   Msg.ToUserName,
+				Content:      Msg.Content,
+				SendTime:     Msg.CreateTime,
+			}
+			checkGroupMsg(&msg, user.LoginUser.UserName)
+
+			log.Println(msg)
 		}
 		if strings.Contains(Msg.Content, "加入了群聊") || strings.Contains(Msg.Content, "分享的二维码加入群聊") {
 			// ADD 新人入群

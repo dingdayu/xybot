@@ -30,12 +30,20 @@ const (
 	//ReceiveMemberCardChanged  = "ReceiveMemberCardChanged"
 	//// 新成员入群
 	//NewMemberJoinCluster  = "NewMemberJoinCluster"
-	//// 加入新群
-	//MeJoinCluster  = "MeJoinCluster"
-	//// 收到有人退出群
-	//MemberExitCluster  = "MemberExitCluster"
-	//// 收到有人被踢出群
-	//MemberKickCluste  = "MemberKickCluste"
+
+
+
+
+	// 修改群名称
+	EditGroupName = "EditGroupName"
+	// 新成员入群
+	NewMemberJoinGroup  = "NewMemberJoinGroup"
+	// 收到有人被踢出群
+	MemberKickGroup  = "MemberKickGroup"
+	// 收到有人退出群
+	MemberExitGroup  = "MemberExitGroup"
+	// 加入新群
+	MeJoinGroup  = "MeJoinGroup"
 
 	// 共享名片
 	ShareCard = "ShareCard"
@@ -236,7 +244,6 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 
 	Contact := model.GetContactByUsername(Msg.FromUserName)
 
-
 	log.Println("[" + Msg.ToUserName + "] 有来自[" + Msg.FromUserName + "]消息：[" + strconv.Itoa(Msg.MsgType) + "] " + Msg.Content)
 	switch Msg.MsgType {
 	case 1:
@@ -335,7 +342,7 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 		msg := Message{
 			MsgId:        Msg.MsgId,
 			UUID:         user.uuid,
-			Event:        ReceiveImageMessage,
+			Event:        ReceiveVoiceMessage,
 			FromUserName: Msg.FromUserName,
 			FromNickName: Contact.NickName,
 			ToUserName:   Msg.ToUserName,
@@ -501,7 +508,6 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			}
 			checkGroupMsg(&msg, user.LoginUser.UserName)
 
-
 			// todo::下载文件  md5 去重
 
 			log.Println(msg)
@@ -594,7 +600,59 @@ func (user *WxLoginStatus) handleMessage(Msg types.Message) {
 			// 添加好友之间被通过，删除后重新添加
 		} else if strings.Contains(Msg.Content, "加入了群聊") || strings.Contains(Msg.Content, "移出了群聊") || strings.Contains(Msg.Content, "改群名为") || strings.Contains(Msg.Content, "邀请你") || strings.Contains(Msg.Content, "分享的二维码加入群聊") {
 			// 群成员改变，添加或移除
-			GroupChange(Msg)
+			if strings.Contains(Msg.Content, "邀请你") {
+				// INVITE 邀请你加入新群
+				group := model.GetContactByUsername(Msg.FromUserName)
+				msg := Message{
+					MsgId:        Msg.MsgId,
+					UUID:         user.uuid,
+					Event:        MeJoinGroup,
+					FromUserName: "system",
+					FromNickName: "system",
+					GroupNickName: group.NickName,
+					GroupUserName: group.UserName,
+					ToUserName:   Msg.ToUserName,
+					Content:      Msg.Content,
+					SendTime:     Msg.CreateTime,
+				}
+
+				log.Println(msg)
+				return
+			}
+			if strings.Contains(Msg.Content, "加入了群聊") || strings.Contains(Msg.Content, "分享的二维码加入群聊") {
+				// ADD 新人入群
+				name := utils.PregMatch(`邀请"(.+)"加入了群聊`, Msg.Content)
+				if len(name) <= 0 {
+					name = utils.PregMatch(`"(.+)"通过扫描.+分享的二维码加入群聊`, Msg.Content)
+				}
+				msg := Message{
+					MsgId:        Msg.MsgId,
+					UUID:         user.uuid,
+					Event:        MeJoinGroup,
+					FromUserName: Msg.FromUserName,
+					FromNickName: Contact.NickName,
+					ToUserName:   Msg.ToUserName,
+					Content:      Msg.Content,
+					SendTime:     Msg.CreateTime,
+				}
+
+				log.Println(msg)
+				return
+
+
+				fmt.Println(name)
+			}
+			if strings.Contains(Msg.Content, "移出了群聊") {
+				// REMOVE 被移除
+			}
+			if strings.Contains(Msg.Content, "改群名为") {
+				// RENAME 群名修改
+				name := utils.PregMatch(`改群名为“(.+)”`, Msg.Content)
+				fmt.Println(name)
+			}
+			if strings.Contains(Msg.Content, "移出群聊") {
+				// BE_REMOVE 被移除群聊
+			}
 		}
 
 		// 位置共享结束
@@ -662,7 +720,7 @@ func EmojiHandle(content string) string {
 
 type Message struct {
 	MsgId         string `json:"msgid"`
-	UUID	      string
+	UUID          string
 	Event         string
 	FromUserName  string
 	FromNickName  string
@@ -675,7 +733,7 @@ type Message struct {
 }
 
 // 检查是否群消息，并补充群信息
-func checkGroupMsg(msg *Message, toUserName string)  {
+func checkGroupMsg(msg *Message, toUserName string) {
 	if strings.Contains(msg.ToUserName, "@@") {
 		group := model.GetContactByUsername(msg.ToUserName)
 		msg.GroupUserName = msg.ToUserName
